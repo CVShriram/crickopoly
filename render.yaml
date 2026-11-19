@@ -1,0 +1,35 @@
+databases:
+  - name: crickopoly-db
+    databaseName: crickopoly
+    user: crickopoly
+    plan: free
+
+services:
+  - type: web
+    name: crickopoly
+    runtime: python
+    plan: free
+    buildCommand: |
+      npm --prefix frontend ci
+      npm --prefix frontend run build
+      pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: crickopoly-db
+          property: connectionString
+      # Same-origin deployment: /api and /ws are served by this process, so no
+      # FRONTEND_URL or CORS_ORIGINS value is required. Both can be set for a
+      # split frontend/backend deployment.
+      - key: FRONTEND_URL
+        value: ""
+      - key: CORS_ORIGINS
+        value: ""

@@ -1,0 +1,1 @@
+"""Cricket Monopoly backend application."""

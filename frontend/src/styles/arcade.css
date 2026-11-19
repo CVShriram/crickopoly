@@ -1,0 +1,192 @@
+/* Phase 8 — premium arena/leaderboard finish.
+   Loaded after the base styles, so it only adds polish and the new panels. */
+
+:root {
+  --violet: #a78bfa;
+  --cyan: #38bdf8;
+  --surface-glass: rgba(12, 34, 50, .78);
+  --gold-soft: rgba(244, 189, 74, .16);
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% -5%, rgba(244, 189, 74, .10), transparent 34%),
+    radial-gradient(circle at 88% 8%, rgba(167, 139, 250, .10), transparent 32%),
+    radial-gradient(circle at 50% 110%, rgba(34, 197, 94, .08), transparent 44%),
+    var(--navy);
+}
+
+.screen-bg {
+  background:
+    radial-gradient(circle at 12% -5%, rgba(244, 189, 74, .10), transparent 34%),
+    radial-gradient(circle at 88% 8%, rgba(167, 139, 250, .09), transparent 32%),
+    radial-gradient(circle at 50% 110%, rgba(34, 197, 94, .08), transparent 44%),
+    var(--navy);
+}
+
+.screen-topbar {
+  background: linear-gradient(180deg, rgba(8, 24, 37, .95), rgba(6, 19, 31, .82));
+  backdrop-filter: blur(14px);
+  border-bottom-color: rgba(244, 189, 74, .18);
+}
+
+.brand-ball {
+  background: linear-gradient(145deg, #ffe6a4, #d99a20);
+  color: #2b1a00;
+  box-shadow: 0 0 18px rgba(244, 189, 74, .28);
+}
+.brand-mark b { color: var(--gold); }
+
+.hero-tag,
+.badge-gold,
+.level-tag {
+  text-shadow: 0 0 14px rgba(244, 189, 74, .35);
+}
+
+.btn.gold {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(217, 154, 32, .22), inset 0 1px 0 rgba(255, 255, 255, .45);
+}
+.btn.gold::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .32) 48%, transparent 62%);
+  transform: translateX(-120%);
+  transition: transform .55s ease;
+}
+.btn.gold:hover:not(:disabled)::after { transform: translateX(120%); }
+
+/* Live economy chips in the game header */
+.wallet-chip, .runs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .32rem .7rem;
+  border-radius: 99px;
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  border: 1px solid rgba(244, 189, 74, .28);
+  background: var(--gold-soft);
+  white-space: nowrap;
+}
+.wallet-chip b { color: var(--gold); }
+.runs-chip { border-color: rgba(34, 197, 94, .3); background: rgba(34, 197, 94, .12); }
+.runs-chip b { color: #86efac; }
+.scoreboard-link { color: var(--gold) !important; font-weight: 700 !important; }
+
+.panel, .action-panel, .player-rail, .lobby-card, .entry-card, .result-card, .ladder-card {
+  background: linear-gradient(155deg, rgba(16, 45, 65, .9), rgba(8, 25, 38, .92));
+  border-color: rgba(148, 190, 210, .18);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+
+.player-card.current {
+  box-shadow: 0 0 0 1px var(--accent), 0 0 26px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.gift-btn { width: 100%; margin-top: .55rem; }
+
+/* Gift modal */
+.gift-wallet {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .7rem;
+  margin: 1rem 0;
+}
+.gift-wallet > div {
+  background: rgba(0, 0, 0, .24);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: .75rem;
+  display: flex;
+  flex-direction: column;
+}
+.gift-wallet span { color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; }
+.gift-wallet b { color: var(--gold); font-family: 'Barlow Condensed', sans-serif; font-size: 1.35rem; }
+.quick-amounts { display: flex; gap: .4rem; flex-wrap: wrap; margin: .2rem 0 1rem; }
+.quick-amounts .chip.selected { background: rgba(244, 189, 74, .22); border-color: var(--gold); color: var(--gold); }
+.gift-modal .field select, .gift-modal .field input { background: rgba(3, 12, 20, .8); }
+
+/* Live scoreboard overlay */
+.live-table, .ladder-card {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(4, 15, 24, .45);
+}
+.live-head, .live-row, .ladder-head, .ladder-row {
+  display: grid;
+  align-items: center;
+  gap: .6rem;
+  min-width: 720px;
+  padding: .7rem .9rem;
+  border-bottom: 1px solid var(--line);
+  font-size: .8rem;
+}
+.live-head, .ladder-head {
+  color: var(--muted);
+  font-size: .66rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, .035);
+}
+.live-head { grid-template-columns: 34px 2fr repeat(6, 1fr); }
+.live-row { grid-template-columns: 34px 2fr repeat(6, 1fr); }
+.live-row:last-child, .ladder-row:last-child { border-bottom: 0; }
+.live-row.current { background: rgba(244, 189, 74, .07); }
+.live-row.me { box-shadow: inset 3px 0 0 var(--green); }
+.live-row.out { opacity: .5; }
+.live-rank, .ladder-rank {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.25rem;
+  color: var(--gold);
+}
+.live-name { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; font-weight: 700; }
+.live-name i, .ladder-name i {
+  width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none;
+}
+.live-name em {
+  font-style: normal; font-size: .56rem; letter-spacing: .1em;
+  background: var(--green); color: #05160b; border-radius: 4px; padding: .1rem .3rem;
+}
+.live-name small { flex-basis: 100%; color: var(--muted); font-weight: 400; font-size: .68rem; }
+.gold-text { color: var(--gold); font-weight: 700; }
+.green-text { color: #86efac; font-weight: 700; }
+.danger-text { color: var(--red); font-weight: 700; }
+
+/* Global leaderboard screen */
+.leaderboard-screen .sub-head { align-items: center; }
+.ladder-head { grid-template-columns: 46px 2fr repeat(6, 1fr); }
+.ladder-row { grid-template-columns: 46px 2fr repeat(6, 1fr); }
+.ladder-row.podium-1 { background: linear-gradient(90deg, rgba(244, 189, 74, .18), transparent 70%); }
+.ladder-row.podium-2 { background: linear-gradient(90deg, rgba(203, 213, 225, .12), transparent 70%); }
+.ladder-row.podium-3 { background: linear-gradient(90deg, rgba(194, 120, 65, .13), transparent 70%); }
+.ladder-name { display: flex; align-items: center; gap: .45rem; font-weight: 700; }
+.ladder-empty { padding: 1.4rem; }
+.history-heading { margin-top: 2.2rem; }
+
+/* Winner and ranking tables glow a little more */
+.winner-banner { box-shadow: 0 0 60px rgba(244, 189, 74, .10), inset 0 1px 0 rgba(255, 255, 255, .05); }
+.final-row.winner, .ranking-row.winner {
+  background: linear-gradient(90deg, rgba(244, 189, 74, .16), transparent);
+}
+
+@media (max-width: 900px) {
+  .topbar-center { flex-wrap: wrap; justify-content: center; }
+  .wallet-chip, .runs-chip { font-size: .68rem; padding: .24rem .55rem; }
+  .scoreboard-modal .modal-card, .modal-card.wide { padding: 1.2rem; }
+  .gift-wallet { grid-template-columns: 1fr; }
+  .ladder-head, .ladder-row, .live-head, .live-row { min-width: 660px; }
+}
+
+@media (max-width: 640px) {
+  .screen-topbar { padding: .6rem .8rem; }
+  .topbar-nav { gap: .7rem; }
+  .topbar-nav button { font-size: .75rem; }
+  .brand-mark.small { font-size: .86rem; }
+  .brand-ball { width: 28px; height: 28px; }
+}
