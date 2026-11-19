@@ -45,6 +45,10 @@ export function Landing() {
         ? await api.createRoom(name.trim(), avatar, color)
         : await api.joinRoom(code.trim().toUpperCase(), name.trim(), avatar, color)
       sound.play('buy')
+      // Paint the roster from the REST response immediately; the WebSocket
+      // snapshot that follows will confirm/refresh it. This avoids a blank
+      // "Connecting to room…" flash after create/join.
+      dispatch({ type: 'STATE', state: result.state })
       dispatch({
         type: 'SESSION',
         session: { code: result.code, playerId: result.player_id, name: name.trim(), avatar, color },

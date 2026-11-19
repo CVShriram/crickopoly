@@ -29,6 +29,9 @@ class SocketHub:
         self.connections.setdefault(room.id, {})[player_id] = ws
         room.engine.set_connected(player_id, True)
         await self._send(ws, room, player_id, room.engine.take_events())
+        # Refresh the other managers as soon as someone (re)connects. This also
+        # covers invite links that open a socket directly in the lobby.
+        await self.broadcast(room, exclude_pid=player_id)
 
     async def disconnect(self, room: Room, player_id: str) -> None:
         self.connections.get(room.id, {}).pop(player_id, None)
@@ -49,9 +52,12 @@ class SocketHub:
         }
         await ws.send_json(payload)
 
-    async def broadcast(self, room: Room, events: list[dict] | None = None) -> None:
+    async def broadcast(self, room: Room, events: list[dict] | None = None,
+                        exclude_pid: str | None = None) -> None:
         events = events or []
         for pid, ws in list(self.connections.get(room.id, {}).items()):
+            if pid == exclude_pid:
+                continue
             try:
                 await self._send(ws, room, pid, events)
             except Exception:

@@ -170,6 +170,28 @@ def test_only_host_can_start():
     assert response.status_code == 400
 
 
+def test_rest_join_pushes_live_roster_update_to_host():
+    """Regression: a friend joining over REST must refresh the host's lobby
+    over the socket. Without this push the host sees a one-player room and the
+    Start button stays disabled with "At least 2 managers are needed"."""
+    host = create_room("LiveHost")
+    with client.websocket_connect(
+        f"/ws?code={host['code']}&token={host['player_id']}"
+    ) as host_ws:
+        first = host_ws.receive_json()
+        assert len(first["state"]["players"]) == 1
+
+        join_room(host["code"], "LiveGuest")
+
+        # The host sends no action — the refreshed roster must arrive on its own.
+        update = recv_until(
+            host_ws,
+            lambda m: len(m.get("state", {}).get("players", [])) == 2,
+        )
+        names = {p["name"] for p in update["state"]["players"]}
+        assert {"LiveHost", "LiveGuest"} == names
+
+
 def test_websocket_start_and_roll():
     host = create_room("WSHost")
     guest = join_room(host["code"], "WSGuest")

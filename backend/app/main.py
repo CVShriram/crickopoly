@@ -142,7 +142,7 @@ def game_config() -> dict[str, Any]:
 
 
 @app.post("/api/rooms", status_code=201)
-def create_room(body: CreateRoomIn) -> dict:
+async def create_room(body: CreateRoomIn) -> dict:
     room = manager.create(body.name, body.avatar, body.color)
     save_room(room.state, room.host_id, room.created_at)
     return {"room_id": room.id, "code": room.code, "player_id": room.host_id,
@@ -150,12 +150,16 @@ def create_room(body: CreateRoomIn) -> dict:
 
 
 @app.post("/api/rooms/join")
-def join_room(body: JoinRoomIn) -> dict:
+async def join_room(body: JoinRoomIn) -> dict:
     try:
         room, player_id = manager.join(body.code, body.name, body.avatar, body.color)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     save_room(room.state, room.host_id, room.created_at)
+    # Joins arrive over REST, not the socket, so other managers would otherwise
+    # keep a stale roster. Push a fresh snapshot to every connected client so
+    # the host instantly sees the new manager and the Start button unlocks.
+    await hub.broadcast(room)
     return {"room_id": room.id, "code": room.code, "player_id": player_id,
             "state": room.state.to_dict(player_id)}
 
@@ -169,7 +173,7 @@ def get_room(code: str) -> dict:
 
 
 @app.post("/api/rooms/{code}/ready")
-def set_ready(code: str, body: ReadyIn) -> dict:
+async def set_ready(code: str, body: ReadyIn) -> dict:
     room = manager.get_by_code(code)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -178,11 +182,12 @@ def set_ready(code: str, body: ReadyIn) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     save_room(room.state, room.host_id, room.created_at)
+    await hub.broadcast(room)
     return room.state.to_dict(body.player_id)
 
 
 @app.post("/api/rooms/{code}/start")
-def start_game(code: str, body: PlayerIn) -> dict:
+async def start_game(code: str, body: PlayerIn) -> dict:
     room = manager.get_by_code(code)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -191,11 +196,12 @@ def start_game(code: str, body: PlayerIn) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     save_room(room.state, room.host_id, room.created_at)
+    await hub.broadcast(room)
     return room.state.to_dict(body.player_id)
 
 
 @app.post("/api/rooms/{code}/bots")
-def add_bots(code: str, body: BotsIn) -> dict:
+async def add_bots(code: str, body: BotsIn) -> dict:
     """Fill empty slots in a lobby with server-side AI managers."""
     room = manager.get_by_code(code)
     if not room:
@@ -205,6 +211,7 @@ def add_bots(code: str, body: BotsIn) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     save_room(room.state, room.host_id, room.created_at)
+    await hub.broadcast(room)
     return room.state.to_dict(room.host_id)
 
 
