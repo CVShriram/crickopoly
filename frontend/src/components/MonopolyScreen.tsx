@@ -15,6 +15,12 @@ const UPGRADE_BASE = 60
 const UPGRADE_STEP = 40
 const MAX_LEVEL = 4
 
+const EVENT_ICONS: Record<string, string> = {
+  roll: '🎲', buy: '🏟️', decline: '⏭️', auction: '🔨', sign: '🤝',
+  charge: '💸', rent: '🏟️', upgrade: '⬆️', injury: '🚑', trade: '🔁',
+  lap: '🔄', skip: '⏭️', final: '🏆',
+}
+
 const num = (value: unknown): number => {
   const n = Number(value)
   return Number.isFinite(n) ? n : 0
@@ -25,6 +31,19 @@ const collectionSize = (value: unknown): number =>
 
 const shortName = (value?: string): string =>
   String(value || '').replace(/^the\s+/i, '').split(/[·—–-]/)[0].trim() || '—'
+
+const pad2 = (value: number): string => String(Math.max(0, Math.trunc(value))).padStart(2, '0')
+
+const tileIdValue = (value: number | string): number | string => {
+  const raw = String(value)
+  return /^\d+$/.test(raw) ? Number(raw) : raw
+}
+
+const shortenText = (value: string): string => String(value || '')
+  .replace(/\s+/g, ' ')
+  .replace(/^(season|round|turn)\s+\d+\s*[—–-]\s*/i, '')
+  .trim()
+  .slice(0, 108)
 
 /** 52 squares around a 14×14 ring: corners live at 0, 13, 26 and 39. */
 function tileCell(position: number): { gridRow: number; gridColumn: number } {
@@ -40,6 +59,10 @@ export function MonopolyScreen() {
   const state = app.state as unknown as MonopolyState | null
   const lobby = state && !state.started ? state as unknown as MonopolyLobby : null
   const [helpOpen, setHelpOpen] = useState(false)
+  const [tradeOpen, setTradeOpen] = useState(false)
+  const [tradeGive, setTradeGive] = useState('')
+  const [tradeTarget, setTradeTarget] = useState('')
+  const [tradeTake, setTradeTake] = useState('')
 
   const you = state?.you || app.session?.playerId || ''
   const gamedata = state?.gamedata
@@ -69,6 +92,23 @@ export function MonopolyScreen() {
   const rawTiles: Tile[] = state?.board?.length ? state.board : (app.gamedata?.board || [])
   const tiles = [...rawTiles].sort((a, b) => num(a.position) - num(b.position))
   const tileMap = new Map(tiles.map(tile => [String(tile.id), tile] as const))
+  const tileByPosition = new Map(tiles.map(tile => [num(tile.position), tile] as const))
+  const tileAt = (position: unknown): Tile | undefined => tileByPosition.get(num(position))
+  const tileName = (id: unknown): string => {
+    const tile = tileMap.get(String(id ?? ''))
+    return tile?.name || (id !== undefined && id !== null && String(id) !== '' ? `Square ${id}` : 'a square')
+  }
+
+  const propertyFor = (tile?: Tile) => tile ? state?.properties?.[String(tile.id)] : undefined
+  const ownerFor = (tile?: Tile): MonopolyFranchise | undefined => {
+    const ownerId = propertyFor(tile)?.owner
+    return ownerId ? state?.franchises?.[String(ownerId)] : undefined
+  }
+  const managerName = (pid?: string | number | null): string => {
+    const manager = pid !== undefined && pid !== null && String(pid) !== ''
+      ? state?.franchises?.[String(pid)] : undefined
+    return manager?.name || 'Manager'
+  }
 
   const playerMap = new Map((gamedata?.players || app.gamedata?.players || [])
     .map(player => [String(player.id), player] as const))
@@ -103,26 +143,48 @@ export function MonopolyScreen() {
   const leaderLaps = managers.reduce((best, f) => Math.max(best, num(f.laps)), 0)
   const maxWickets = num(myFranchise?.max_wickets) > 0 ? num(myFranchise?.max_wickets) : 3
 
-  const ownedTiles = Object.entries(state?.properties || {})
-    .filter(([, property]) => Boolean(property?.owner) && String(property.owner) === you)
-    .map(([tileId, property]) => {
-      const tile = tileMap.get(String(tileId))
-      const level = Math.min(MAX_LEVEL, num(property?.level))
-      const cost = UPGRADE_BASE + level * UPGRADE_STEP
-      const upgradeId = tile ? tile.id : (/^\d+$/.test(tileId) ? Number(tileId) : tileId)
-      const canUpgrade = isMyTurn && level < MAX_LEVEL
-        && num(myFranchise?.fc) >= cost
-      return { tileId, tile, level, cost, canUpgrade, upgradeId }
+  const unlocked = Boolean(myFranchise?.unlocked)
+  const homeGround = myFranchise?.home_ground !== undefined && myFranchise.home_ground !== null
+    && String(myFranchise.home_ground) !== '' ? String(myFranchise.home_ground) : ''
+  const homeTile = homeGround ? tileMap.get(homeGround) : undefined
+  const myTile = tileAt(myFranchise?.pos)
+  const myTileOwner = ownerFor(myTile)
+
+  const propertiesOf = (pid: string) => Object.entries(state?.properties || {})
+    .filter(([, property]) => Boolean(property?.owner) && String(property.owner) === String(pid))
+    .map(([id, property]) => {
+      const tile = tileMap.get(String(id))
+      return { id, tile, name: tile?.name || String(id), price: num(property?.price ?? tile?.price) }
     })
-    .sort((a, b) => String(a.tile?.name || a.tileId).localeCompare(String(b.tile?.name || b.tileId)))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  const rivals = managers.filter(manager => String(manager.id) !== String(you))
+
+  const ownedTiles = propertiesOf(you).map(item => {
+    const level = Math.min(MAX_LEVEL, num(state?.properties?.[String(item.id)]?.level))
+    const cost = UPGRADE_BASE + level * UPGRADE_STEP
+    return {
+      tileId: item.id,
+      tile: item.tile,
+      level,
+      cost,
+      canUpgrade: isMyTurn && unlocked && level < MAX_LEVEL && num(myFranchise?.fc) >= cost,
+      upgradeId: tileIdValue(item.id),
+    }
+  })
 
   const eventLog: Array<{ type: string; text: string }> = (app.events || [])
     .map(event => ({ type: String(event?.type || 'update'), text: String(event?.text || '').trim() }))
     .filter(entry => Boolean(entry.text))
-    .slice(-6)
+    .slice(-3)
     .reverse()
-  if (state?.last_event?.text && !eventLog.some(entry => entry.text === state.last_event!.text)) {
-    eventLog.unshift({ type: String(state.last_event.type || 'update'), text: String(state.last_event.text) })
+    .map(entry => ({ ...entry, text: shortenText(entry.text) }))
+  if (state?.last_event?.text) {
+    const text = shortenText(String(state.last_event.text))
+    if (!eventLog.some(entry => entry.text === text)) {
+      eventLog.unshift({ type: String(state.last_event.type || 'update'), text })
+      if (eventLog.length > 3) eventLog.length = 3
+    }
   }
 
   const pendingTile = pending?.tile_id !== undefined ? tileMap.get(String(pending.tile_id)) : undefined
@@ -132,6 +194,13 @@ export function MonopolyScreen() {
     : undefined
   const pendingPrice = num(pending?.price ?? pendingTile?.price)
   const pendingName = pendingPlayer?.name || pendingTile?.name || 'this property'
+
+  const pendingTrade = pending?.type === 'trade' ? pending : null
+  const tradeForMe = Boolean(pendingTrade && String(pendingTrade.target) === String(you))
+  const tradeByMe = Boolean(pendingTrade && String(pendingTrade.pid) === String(you))
+  const tradeTargetName = managerName(pendingTrade?.target)
+  const canTrade = isMyTurn && !rolled && !pending && ownedTiles.length > 0 && rivals.length > 0
+  const targetTiles = propertiesOf(tradeTarget)
 
   let prompt = 'Open the game to join a room'
   let hint = 'Create a room, join with a code, or jump into quick play.'
@@ -146,6 +215,12 @@ export function MonopolyScreen() {
   } else if (!state.started || lobby) {
     prompt = 'Waiting for the host to start the season…'
     hint = 'Share the room code, add bots, then roll out.'
+  } else if (tradeForMe) {
+    prompt = `Trade offer from ${managerName(pendingTrade?.pid)}`
+    hint = 'Accept or decline — you can answer between turns.'
+  } else if (tradeByMe) {
+    prompt = `Trade offer sent — waiting for ${tradeTargetName}`
+    hint = 'Bots answer automatically.'
   } else if (pending?.type === 'buy') {
     prompt = `Buy ${pendingName} for ${pendingPrice} FC?`
     hint = 'Skip if you would rather save your FC.'
@@ -157,7 +232,7 @@ export function MonopolyScreen() {
     hint = 'Charges and bonuses are being applied.'
   } else if (isMyTurn) {
     prompt = 'Your turn — roll the dice'
-    hint = 'Upgrade a property first, then roll.'
+    hint = 'Upgrade or trade a square first, then roll.'
   } else if (currentFranchise) {
     prompt = `Waiting for ${currentFranchise.name}…`
     hint = currentFranchise.is_bot ? 'Bot turns resolve automatically.' : 'The dice pass around the board.'
@@ -169,12 +244,36 @@ export function MonopolyScreen() {
     dispatch({ type: 'JOIN_CODE', code: null })
   }
 
+  const openTrade = () => {
+    const give = String(ownedTiles[0]?.tileId ?? '')
+    const target = String(rivals[0]?.id ?? '')
+    setTradeGive(give)
+    setTradeTarget(target)
+    setTradeTake(String(propertiesOf(target)[0]?.id ?? ''))
+    setTradeOpen(true)
+  }
+
+  const selectTradeTarget = (pid: string) => {
+    setTradeTarget(pid)
+    setTradeTake(String(propertiesOf(pid)[0]?.id ?? ''))
+  }
+
+  const submitTrade = () => {
+    if (!tradeGive || !tradeTarget || !tradeTake) return
+    send('trade', {
+      target: tradeTarget,
+      give_tile: tileIdValue(tradeGive),
+      take_tile: tileIdValue(tradeTake),
+    })
+    setTradeOpen(false)
+  }
+
   return (
     <div className="app-shell mono-shell">
       <header className="topbar slim-header mono-header">
         <div className="brand">
           <span className="brand-mark">🏏</span>
-          <span><strong>CRICKET MONOPOLY</strong><small>CRICKOPOLY · RULES 5</small></span>
+          <span><strong>CRICKET MONOPOLY</strong><small>CRICKOPOLY · RULES 6</small></span>
         </div>
         <div className="header-meta mono-header-meta">
           <Badge tone="gold" icon="🏠">{state?.code || app.session?.code || '—'}</Badge>
@@ -190,17 +289,44 @@ export function MonopolyScreen() {
         </div>
       </header>
 
+      {myFranchise && (
+        <section className="mono-whereami" aria-label="Where am I?">
+          <div className="mono-where-location">
+            <span className="mono-where-kicker">📍 WHERE AM I?</span>
+            <strong><span className="mono-where-number">#{pad2(num(myFranchise.pos))}</span>{myTile?.name || 'Unknown square'}</strong>
+            <small>{myTile?.country ? `${countryMeta(myTile.country)?.flag || ''} ${myTile.country}` : (myTile?.kind || 'square')}</small>
+          </div>
+          <div className="mono-where-owner" style={{ '--owner': myTileOwner?.color || '#8f7439' } as React.CSSProperties}>
+            <span className="mono-where-avatar">{myTileOwner?.avatar || '🏦'}</span>
+            <span className="mono-where-owner-copy">
+              <small>OWNER</small>
+              <b>{myTileOwner ? myTileOwner.name : 'Unowned / Bank'}</b>
+            </span>
+            {myTileOwner && <span className="mono-where-swatch" />}
+          </div>
+          <div className="mono-where-stats">
+            <span><small>FC</small><b>{num(myFranchise.fc).toLocaleString()}</b></span>
+            <span><small>RUNS</small><b>{num(myFranchise.runs)}</b></span>
+            <span><small>WKTS</small><b>{num(myFranchise.wickets)}/{maxWickets}</b></span>
+            <span><small>LAPS</small><b>{num(myFranchise.laps)}/{targetLaps}</b></span>
+          </div>
+        </section>
+      )}
+
       <main className="mono-main">
         <section className="mono-board-wrap" aria-label="Cricket Monopoly board">
           <div className="mono-board">
             {tiles.map(tile => {
               const position = num(tile.position)
               const cell = tileCell(position)
-              const property = state?.properties?.[String(tile.id)]
-              const owner = property?.owner ? state?.franchises?.[String(property.owner)] : undefined
+              const property = propertyFor(tile)
+              const owner = ownerFor(tile)
               const level = Math.min(MAX_LEVEL, num(property?.level))
+              const price = num(property?.price ?? tile.price)
               const tokens = managers.filter(f => num(f.pos) === position)
               const isCurrent = Boolean(currentFranchise && num(currentFranchise.pos) === position)
+              const isYou = Boolean(myFranchise && num(myFranchise.pos) === position)
+              const isHome = Boolean(homeGround && String(tile.id) === homeGround)
               const style = {
                 gridRow: cell.gridRow,
                 gridColumn: cell.gridColumn,
@@ -209,8 +335,8 @@ export function MonopolyScreen() {
               } as React.CSSProperties
               return (
                 <div key={`${tile.id}-${position}`} style={style}
-                  className={`mono-tile mono-kind-${tile.kind || 'event'} ${isCurrent ? 'is-current' : ''} ${owner ? 'is-owned' : ''}`}
-                  title={`${tile.name || 'Tile'}${owner ? ` · ${owner.name}` : ''}${level ? ` · level ${level}` : ''}`}>
+                  className={`mono-tile mono-kind-${tile.kind || 'event'} ${isCurrent ? 'is-current' : ''} ${isYou ? 'is-you' : ''} ${isHome ? 'is-home' : ''} ${owner ? 'is-owned' : ''} ${tokens.length > 0 ? 'has-tokens' : ''}`}
+                  title={`#${position} ${tile.name || 'Tile'}${owner ? ` · ${owner.name}` : price > 0 ? ` · ${price} FC` : ''}${level ? ` · level ${level}` : ''}`}>
                   <span className="mono-tile-head">
                     <b className="mono-tile-icon">{tile.icon || '•'}</b>
                     <span className="mono-tile-name">{shortName(tile.short || tile.name)}</span>
@@ -220,14 +346,20 @@ export function MonopolyScreen() {
                       {[0, 1, 2, 3].map(index => <i key={index} className={index < level ? 'on' : ''} />)}
                     </span>
                   ) : <span className="mono-tile-gap" />}
+                  {owner ? (
+                    <span className="mono-tile-owner" style={{ '--owner': owner.color || '#c8a24b' } as React.CSSProperties}>
+                      <b>{owner.avatar || '🏏'}</b>{shortName(owner.name)}
+                    </span>
+                  ) : price > 0 ? (
+                    <span className="mono-tile-price">{price} FC</span>
+                  ) : <span className="mono-tile-gap" />}
                   {tokens.length > 0 && (
                     <span className="mono-tile-tokens">
-                      {tokens.slice(0, 4).map(token => (
-                        <span key={token.id} className="mono-token" title={token.name}
-                          style={{ '--token': token.color || '#c8a24b' } as React.CSSProperties}>
-                          {token.avatar || '🏏'}
-                        </span>
-                      ))}
+                      <span key={tokens[0].id} className="mono-token" title={tokens[0].name}
+                        style={{ '--token': tokens[0].color || '#c8a24b' } as React.CSSProperties}>
+                        {tokens[0].avatar || '🏏'}
+                      </span>
+                      {tokens.length > 1 && <span className="mono-token mono-token-count">+{tokens.length - 1}</span>}
                     </span>
                   )}
                 </div>
@@ -237,7 +369,7 @@ export function MonopolyScreen() {
             <div className="mono-center">
               <div className="mono-center-mark">🏏</div>
               <h2>CRICKET MONOPOLY</h2>
-              <small>BUY GROUNDS · SIGN PLAYERS · CHARGE RIVALS</small>
+              <small>BUY GROUNDS · SWAP SQUARES · SCORE RUNS</small>
               <div className="mono-dice" aria-label={`Dice: ${(state?.dice || []).join(', ') || 'not rolled'}`}>
                 {(state?.dice?.length ? state.dice : [null, null]).map((face, index) => (
                   <span key={index} className={face ? 'rolled' : ''}>{face ?? '·'}</span>
@@ -247,9 +379,6 @@ export function MonopolyScreen() {
                 <span><small>SEASON LAPS</small><b>{leaderLaps} / {targetLaps}</b></span>
                 <span><small>MANAGERS</small><b>{managers.length}</b></span>
               </div>
-              {state?.last_event?.text && (
-                <p className="mono-center-event"><span>{state.last_event.type === 'final' ? '🏆' : '📢'}</span>{state.last_event.text}</p>
-              )}
             </div>
           </div>
         </section>
@@ -264,30 +393,29 @@ export function MonopolyScreen() {
                   <span className="mono-you-avatar">{myFranchise.avatar || '🏏'}</span>
                   <div>
                     <strong>{myFranchise.name}</strong>
-                    <small>{myFranchise.is_bot ? 'BOT' : 'MANAGER'} · POS {num(myFranchise.pos)}</small>
+                    <small>{myFranchise.is_bot ? 'BOT' : 'MANAGER'} · POS {pad2(num(myFranchise.pos))}</small>
                   </div>
                 </div>
-                <div className="mono-you-stats">
-                  <span><small>FC</small><b>{num(myFranchise.fc).toLocaleString()}</b></span>
-                  <span><small>RUNS</small><b>{num(myFranchise.runs)}</b></span>
-                  <span><small>WICKETS</small><b>{num(myFranchise.wickets)} / {maxWickets}</b></span>
-                  <span><small>LAPS</small><b>{num(myFranchise.laps)} / {targetLaps}</b></span>
-                  <span><small>SQUAD</small><b>{collectionSize(myFranchise.squad)}</b></span>
+                <div className="mono-you-flags">
+                  <Badge tone={unlocked ? 'green' : 'default'}>{unlocked ? 'UPGRADES OPEN' : 'UPGRADES LOCKED'}</Badge>
+                  {homeGround && <Badge tone="gold">🏠 {shortName(homeTile?.name)}</Badge>}
                 </div>
-                <div className="mono-wickets" title={`${num(myFranchise.wickets)} of ${maxWickets} wickets left`}>
-                  {Array.from({ length: maxWickets }, (_, index) => (
-                    <span key={index} className={index < num(myFranchise.wickets) ? 'alive' : ''}>🏏</span>
-                  ))}
-                </div>
-                {Boolean(myFranchise.injured) && <p className="mono-status-line">🚑 In injury reserve — you sit out.</p>}
-                {Boolean(myFranchise.skipped) && !myFranchise.injured && <p className="mono-status-line">⏭️ Wicketkeeper charge — your next turn is skipped.</p>}
+                {Boolean(myFranchise.injured) && <p className="mono-status-line">🚑 Injury reserve — out for 2 turns.</p>}
+                {Boolean(myFranchise.skipped) && !myFranchise.injured && <p className="mono-status-line">⏭️ Wicketkeeper charge — next turn skipped.</p>}
                 {myFranchise.out && <p className="mono-status-line danger">⛔ All out — waiting for the season to end.</p>}
               </>
             ) : <Empty title="No franchise yet" text="Join a room to take your seat on the board." />}
           </Panel>
 
-          <Panel title="Your properties" subtitle={`${ownedTiles.length} owned · upgrades before rolling`}
+          <Panel title="Your properties"
+            subtitle={unlocked ? `${ownedTiles.length} owned · upgrade before rolling` : `${ownedTiles.length} owned · upgrades locked`}
             icon="🏟️" className="mono-owned-panel">
+            {!unlocked && (
+              <p className="mono-upgrade-lock">🔒 Upgrade locked: own a batsman, bowler, wicketkeeper and a ground.</p>
+            )}
+            {unlocked && homeGround && (
+              <p className="mono-home-note">⭐ HOME GROUND: +50% FC rent · +100 FC &amp; +50 runs when you land on it</p>
+            )}
             <div className="mono-owned-list">
               {ownedTiles.length === 0 ? (
                 <Empty title="Nothing owned yet" text="Buy a ground or player square when you land on it." />
@@ -297,7 +425,10 @@ export function MonopolyScreen() {
                     {item.tile?.icon || '•'}
                   </span>
                   <div className="mono-owned-info">
-                    <strong>{item.tile?.name || String(item.tileId)}</strong>
+                    <strong>
+                      {item.tile?.name || String(item.tileId)}
+                      {homeGround && String(item.tileId) === homeGround && <em className="mono-home-tag">HOME</em>}
+                    </strong>
                     <small>
                       {countryMeta(item.tile?.country)?.flag} {item.tile?.country || item.tile?.kind || 'property'}
                       {item.tile?.role ? ` · ${item.tile.role}` : ''}
@@ -307,8 +438,9 @@ export function MonopolyScreen() {
                     </span>
                   </div>
                   <Button small variant="subtle" disabled={!item.canUpgrade}
-                    title={item.level >= MAX_LEVEL ? 'Maximum upgrade reached'
-                      : `Upgrade for ${item.cost} FC`}
+                    title={!unlocked ? 'Upgrade locked until you own BAT + BOWL + WK + a ground'
+                      : item.level >= MAX_LEVEL ? 'Maximum upgrade reached'
+                        : `Upgrade for ${item.cost} FC`}
                     onClick={() => send('upgrade', { tile_id: item.upgradeId })}>
                     {item.level >= MAX_LEVEL ? 'MAX' : `↑ ${item.cost}`}
                   </Button>
@@ -318,33 +450,41 @@ export function MonopolyScreen() {
           </Panel>
 
           <Panel title="Standings" subtitle="Most runs wins the season" icon="🏆" className="mono-standings-panel">
-            <table className="data-table mono-standings-table">
-              <thead><tr><th>#</th><th>Manager</th><th>Runs</th><th>FC</th><th>Wk</th><th>Lap</th></tr></thead>
-              <tbody>
-                {standings.map(row => (
-                  <tr key={row.id} className={row.id === you ? 'is-me' : ''}>
-                    <td><span className={`rank ${num(row.rank) === 1 ? 'rank-1' : ''}`}>{num(row.rank)}</span></td>
-                    <td><span className="team-color" style={{ background: row.color }} />{row.name}</td>
-                    <td><b>{num(row.runs)}</b></td>
-                    <td>{num(row.fc)}</td>
-                    <td>{num(row.wickets)}</td>
-                    <td>{num(row.laps)}</td>
-                  </tr>
-                ))}
-                {standings.length === 0 && (
-                  <tr><td colSpan={6}><Empty title="No standings yet" /></td></tr>
-                )}
-              </tbody>
-            </table>
+            <div className="mono-table-scroll">
+              <table className="data-table mono-standings-table">
+                <thead><tr><th>#</th><th>Manager</th><th>Square</th><th>Runs</th><th>FC</th><th>Wk</th><th>Lap</th></tr></thead>
+                <tbody>
+                  {standings.map(row => {
+                    const manager = state?.franchises?.[String(row.id)]
+                    const position = num(manager?.pos ?? (row as { pos?: number }).pos)
+                    const square = tileAt(position)
+                    return (
+                      <tr key={row.id} className={row.id === you ? 'is-me' : ''}>
+                        <td><span className={`rank ${num(row.rank) === 1 ? 'rank-1' : ''}`}>{num(row.rank)}</span></td>
+                        <td><span className="team-color" style={{ background: row.color }} />{row.name}</td>
+                        <td className="mono-square-cell"><b>#{pad2(position)}</b><small>{shortName(square?.short || square?.name)}</small></td>
+                        <td><b>{num(row.runs)}</b></td>
+                        <td>{num(row.fc)}</td>
+                        <td>{num(row.wickets)}</td>
+                        <td>{num(row.laps)}</td>
+                      </tr>
+                    )
+                  })}
+                  {standings.length === 0 && (
+                    <tr><td colSpan={7}><Empty title="No standings yet" /></td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </Panel>
 
-          <Panel title="Event log" subtitle="Latest six updates" icon="📢" className="mono-log-panel">
+          <Panel title="Event log" subtitle="Latest three updates" icon="📢" className="mono-log-panel">
             <div className="mono-log-list">
               {eventLog.length === 0 ? (
-                <Empty title="No events yet" text="Rolls, purchases and charges appear here." />
+                <Empty title="No events yet" text="Rolls, trades and charges appear here." />
               ) : eventLog.map((event, index) => (
                 <div key={`${event.text}-${index}`} className="mono-log-row">
-                  <span className="mono-log-dot" />
+                  <span className="mono-log-dot" title={event.type}>{EVENT_ICONS[event.type] || '•'}</span>
                   <p>{event.text}</p>
                 </div>
               ))}
@@ -360,7 +500,13 @@ export function MonopolyScreen() {
         </div>
         <div className="mono-action-buttons">
           {app.session && state && !state.finished && state.phase !== 'over' && (
-            pending?.type === 'buy' ? (
+            pendingTrade ? (
+              tradeForMe ? (
+                <span className="mono-action-status">Trade offer — choose below</span>
+              ) : (
+                <span className="mono-action-status">Trade offer sent — waiting for {tradeTargetName}</span>
+              )
+            ) : pending?.type === 'buy' ? (
               <>
                 <Button variant="gold" className="mono-action-primary"
                   onClick={() => send('buy', {})}>BUY · {pendingPrice} FC</Button>
@@ -375,8 +521,13 @@ export function MonopolyScreen() {
                   onClick={() => send('auction_skip', {})}>SKIP</Button>
               </>
             ) : isMyTurn && !rolled ? (
-              <Button variant="gold" className="mono-action-primary"
-                onClick={() => send('roll', {})}>🎲 ROLL DICE</Button>
+              <>
+                <Button variant="gold" className="mono-action-primary"
+                  onClick={() => send('roll', {})}>🎲 ROLL DICE</Button>
+                {canTrade && (
+                  <Button variant="subtle" className="mono-action-trade" onClick={openTrade}>🔁 TRADE</Button>
+                )}
+              </>
             ) : (
               <span className="mono-action-status">
                 {isMyTurn ? 'RESOLVING…' : currentFranchise?.is_bot ? 'BOT PLAYING…' : 'WAITING…'}
@@ -390,6 +541,75 @@ export function MonopolyScreen() {
       </div>
 
       {helpOpen && <MonopolyHelpModal onClose={() => setHelpOpen(false)} />}
+      {tradeOpen && state && !state.finished && state.phase !== 'over' && (
+        <Modal title="Trade a square" subtitle="Swap one property for one rival's — no money"
+          width="540px" onClose={() => setTradeOpen(false)}>
+          <div className="mono-trade-form">
+            <p className="mono-trade-note">Swap one property for one property — no money changes hands.</p>
+            <label className="field">
+              <span>1 · Your square to give</span>
+              <select value={tradeGive} onChange={e => setTradeGive(e.target.value)}>
+                {ownedTiles.map(item => (
+                  <option key={item.tileId} value={item.tileId}>{item.tile?.name || String(item.tileId)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>2 · Rival manager</span>
+              <select value={tradeTarget} onChange={e => selectTradeTarget(e.target.value)}>
+                {rivals.map(manager => (
+                  <option key={manager.id} value={manager.id}>
+                    {manager.avatar || '🏏'} {manager.name}{manager.is_bot ? ' (bot)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>3 · Their square to receive</span>
+              <select value={tradeTake} onChange={e => setTradeTake(e.target.value)} disabled={!targetTiles.length}>
+                {targetTiles.length === 0 ? <option value="">Rival owns no squares</option> : targetTiles.map(item => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="mono-trade-summary">
+              <span className="mono-trade-card"><small>YOU GIVE</small><b>{tileName(tradeGive)}</b></span>
+              <span className="mono-trade-arrow">⇄</span>
+              <span className="mono-trade-card rival"><small>YOU GET</small><b>{tileName(tradeTake)}</b></span>
+            </div>
+            <div className="mono-trade-actions">
+              <Button variant="subtle" onClick={() => setTradeOpen(false)}>Cancel</Button>
+              <Button variant="gold" disabled={!tradeGive || !tradeTarget || !tradeTake} onClick={submitTrade}>
+                Send offer
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {tradeForMe && pendingTrade && state && !state.finished && state.phase !== 'over' && (
+        <Modal title="Trade offer for you" subtitle="Answer any time — it is not tied to your turn"
+          width="520px" onClose={() => send('decline_trade', {})}>
+          <div className="mono-offer">
+            <div className="mono-offer-head" style={{ '--token': state.franchises?.[String(pendingTrade.pid)]?.color || '#c8a24b' } as React.CSSProperties}>
+              <span className="mono-offer-avatar">{state.franchises?.[String(pendingTrade.pid)]?.avatar || '🏏'}</span>
+              <div><strong>{managerName(pendingTrade.pid)} proposes a swap</strong><small>No money — one square each.</small></div>
+            </div>
+            <p className="mono-offer-line">
+              {managerName(pendingTrade.pid)} offers <b>{tileName(pendingTrade.give_tile)}</b> for your{' '}
+              <b>{tileName(pendingTrade.take_tile)}</b>.
+            </p>
+            <div className="mono-trade-summary">
+              <span className="mono-trade-card rival"><small>THEY GIVE</small><b>{tileName(pendingTrade.give_tile)}</b></span>
+              <span className="mono-trade-arrow">⇄</span>
+              <span className="mono-trade-card"><small>YOU GIVE</small><b>{tileName(pendingTrade.take_tile)}</b></span>
+            </div>
+            <div className="mono-trade-actions">
+              <Button variant="subtle" onClick={() => send('decline_trade', {})}>DECLINE</Button>
+              <Button variant="success" onClick={() => send('accept_trade', {})}>ACCEPT</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {!app.session && <MonopolyLandingModal />}
       {app.session && !state && (
         <Modal title="Cricket Monopoly" subtitle="Loading your season…" onClose={() => {}}>
@@ -414,12 +634,12 @@ function MonopolyHelpModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="How to play" subtitle="Cricket Monopoly in six lines" width="640px" onClose={onClose}>
       <ol className="mono-help-list">
-        <li>Roll and move; buy grounds and players you land on with FC. Passing SEASON START pays 100 FC and 100 runs.</li>
-        <li>Each country has three player squares — wicketkeeper, batsman and bowler — with different charges.</li>
-        <li>A wicketkeeper costs runs and skips your next turn; a batsman charge drops as the player is upgraded.</li>
-        <li>A bowler costs runs plus FC; at maximum upgrade it also takes a wicket and pays the owner a bonus.</li>
-        <li>Player auctions sign a real cricketer and add +1 wicket; injury reserve sits you out for two turns.</li>
-        <li>The manager with the most runs after three laps (or the last with wickets) wins. FC breaks ties.</li>
+        <li>Roll and move. Passing SEASON START pays 100 FC + 100 runs. Buy any unowned square you land on.</li>
+        <li>Pay the owner: a wicketkeeper costs runs and skips your next turn; a batsman costs runs, less as it upgrades.</li>
+        <li>A bowler costs runs + FC (a wicket at max upgrade); a ground charges FC rent; iconic squares pay FC + runs from the dice.</li>
+        <li>Upgrades stay locked until you own a batsman, a bowler, a wicketkeeper and a ground.</li>
+        <li>Your first ground is your home ground: +50% FC rent everywhere, and 100 FC + 50 runs when you land on it.</li>
+        <li>On your turn, swap one square for a rival's — no money; bots answer automatically. Three laps: most runs wins, FC breaks ties, 3 wickets means all out. Auctions add a wicket; injury rests two turns.</li>
       </ol>
     </Modal>
   )
@@ -442,7 +662,7 @@ function MonopolyLandingModal() {
 
   const profile = { name: name.trim() || 'Manager', avatar, color }
   const settings = {
-    ruleset: 5,
+    ruleset: 6,
     game: 'cricket-monopoly',
     laps,
     max_players: maxPlayers,
@@ -592,7 +812,7 @@ function MonopolyLobbyModal({ lobby }: { lobby: MonopolyLobby }) {
   const laps = num(lobby.settings?.laps) || 3
   const difficulty = String(lobby.settings?.difficulty || lobby.settings?.ai_difficulty || 'medium')
   const settings = {
-    ruleset: 5,
+    ruleset: 6,
     game: 'cricket-monopoly',
     laps,
     max_players: maxPlayers,

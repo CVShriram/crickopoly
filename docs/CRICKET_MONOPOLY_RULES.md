@@ -1,50 +1,45 @@
-# Crickopoly: Cricket Monopoly
+# Crickopoly: Cricket Monopoly (ruleset 6)
 
-A Monopoly-style board game with real cricketers. Buy grounds and players, upgrade their stats, charge rivals runs, and protect your 3 wickets.
+Monopoly with real cricketers. Buy squares, charge rivals runs, trade property, and finish with the most runs.
 
-## The 30-second explanation
+## The short rules
 
-> Roll and move around the board. Buy any ground or player you land on. When a rival lands on your property, they pay you **runs** (and sometimes **FC**). Each country has three player squares — **wicketkeeper, batsman, bowler** — with different effects. Upgrade a player to make its charge better for you. First to 3 laps wins on runs; if your wickets reach 0 you are all out.
+1. **Roll and move.** Passing START earns **100 FC + 100 runs**.
+2. **Buy or skip.** Land on an unowned square and buy it with FC.
+3. **Pay the owner.** Land on someone else's square and pay them:
+   - 🧤 **Wicketkeeper** — runs, and you miss your next turn.
+   - 🏏 **Batsman** — runs (the charge falls as they are upgraded).
+   - 🎯 **Bowler** — runs + FC; at max upgrade, also lose 1 wicket.
+   - 🏟️ **Ground** — FC rent. ⭐ **Iconic player** — FC + runs from the dice.
+4. **3 laps wins.** Highest runs wins. Ties break on FC.
+5. **3 wickets each.** Lose them all and you are all out.
 
-## Resources
+## Where you are
 
-- **FC** — money used to buy and upgrade. Start: **1,500 FC**. Passing SEASON START pays **100 FC**.
-- **Runs** — your score. Passing SEASON START pays **100 runs**. Charges move runs between managers.
-- **Wickets** — lives. Start with **3**. Buying a player at a player auction adds **+1 wicket** (max 6). Lose all wickets and you are all out.
+The top strip always shows the square you are on and who owns it. Standings show every manager's current square. Board tiles show the owner's colour and avatar.
 
-## The board (52 squares)
+## Upgrades (locked at first)
 
-- **24 player squares** — 8 countries × wicketkeeper, batsman, bowler.
-- **8 grounds** — stadiums you can buy and upgrade.
-- **8 iconic player squares** — like power/water companies: charge `dice total × 8 FC` and `dice total × 2 runs`.
-- **8 special tiles** — player auctions, injury, sponsorship and other simple bonuses/penalties.
-- **4 corners** — SEASON START, headquarters, matchday, injury reserve.
+You can only upgrade once you own **all three player types** (batsman, bowler, wicketkeeper) **and at least one ground**. Until then the upgrade buttons stay locked and explain what is missing.
 
-## Landing on a player square
+- Upgrade cost: `60 + 40 × level`, max level 4.
+- Batsman charges **less** as it improves. Bowler and wicketkeeper charge more.
 
-| Player | Effect on the visitor | Effect on the owner |
-| --- | --- | --- |
-| 🧤 **Wicketkeeper** | Lose runs **and skip your next turn** | Gain those runs |
-| 🏏 **Batsman** | Lose runs; the charge **drops** as the batsman is upgraded | Gain those runs |
-| 🎯 **Bowler** | Lose runs **and FC**; at max upgrade also **lose 1 wicket** | Gain runs, FC, and at max upgrade **half the country's batsman value** |
+## Home ground bonus
 
-If a visitor cannot pay the full charge, they pay what they have and lose 1 wicket.
+Your first ground becomes your **home ground**:
 
-## Other squares
+- **+50% FC rent** from every square you own.
+- Landing on your own ground earns **100 FC + 50 runs** from the bank.
 
-- **Ground** — buy it; rivals pay FC rent, higher after upgrades.
-- **Iconic player** — charge based on the dice rolled.
-- **Player auction** — buy one more real cricketer for FC and gain **+1 wicket**, or skip.
-- **Injury reserve / jail** — sit out 2 turns.
-- **Special tiles** — simple FC/run bonuses and penalties.
+## Trading
 
-## Upgrading
+On your turn you may **swap one property for one rival's property**. Send the offer; the rival sees ACCEPT / DECLINE. Bots decide automatically. No money changes hands, so it is easy to understand.
 
-On your turn, before rolling, you may upgrade one property you own. Each upgrade costs FC and raises your charge (max level 4).
+## Auctions and injury
 
-## Winning
-
-After 3 laps (or when only one manager still has wickets), the manager with the **most runs** wins. Ties are broken by FC.
+- **Player auction** — sign one more real cricketer and gain **+1 wicket**.
+- **Injury reserve** — sit out 2 turns.
 
 ## Safety
 

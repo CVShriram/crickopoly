@@ -657,11 +657,24 @@ export interface MonopolyProperty {
 }
 
 export interface MonopolyPending {
-  type: 'buy' | 'auction' | string
+  type: 'buy' | 'auction' | 'trade' | string
   pid?: string
   tile_id?: number | string
   price?: number
+  /** v6 trade offers: proposer, target and the two swapped squares. */
+  target?: string
+  give_tile?: number | string
+  take_tile?: number | string
   [key: string]: unknown
+}
+
+/** v6 pending variant: swap one property for one rival property, no money. */
+export type MonopolyTradePending = MonopolyPending & {
+  type: 'trade'
+  pid: string
+  target: string
+  give_tile: number | string
+  take_tile: number | string
 }
 
 export interface MonopolyFranchise {
@@ -683,6 +696,10 @@ export interface MonopolyFranchise {
   injured?: number | boolean
   owned?: Array<string | number> | number
   out?: boolean
+  /** v6: upgrades unlock when the manager holds BAT + BOWL + WK + a ground. */
+  unlocked?: boolean
+  /** v6: tile id of the first ground owned; enables the home-ground bonus. */
+  home_ground?: string | number | null
   [key: string]: unknown
 }
 

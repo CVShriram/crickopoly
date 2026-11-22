@@ -1,4 +1,4 @@
-"""Pure rules engine for Cricket Monopoly (ruleset 5).
+"""Pure rules engine for Cricket Monopoly (ruleset 6).
 
 Roll two dice, move clockwise around the 52-square board, buy grounds and real
 cricketer markets, upgrade them, charge rivals runs (and sometimes FC), and
@@ -18,7 +18,7 @@ from typing import Any
 
 from . import data52
 
-RULES_VERSION = 5
+RULES_VERSION = 6
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "max_players": 6,
@@ -36,6 +36,9 @@ LAP_FC = 100
 LAP_RUNS = 100
 UPGRADE_BASE_COST = 60
 UPGRADE_STEP_COST = 40
+HOME_GROUND_FC = 100
+HOME_GROUND_RUNS = 50
+HOME_GROUND_RENT_FACTOR = 3  # floor(due_fc * 3 / 2) when a ground is owned
 
 STATE_KEYS = (
     "ruleset", "started", "finished", "phase", "turn", "laps", "order",
@@ -47,7 +50,7 @@ STATE_KEYS = (
 FRANCHISE_KEYS = (
     "id", "name", "avatar", "color", "is_bot", "pos", "fc", "runs",
     "wickets", "max_wickets", "laps", "squad", "skipped", "injured",
-    "owned", "out",
+    "owned", "out", "unlocked", "home_ground",
 )
 
 STANDING_KEYS = (
@@ -126,6 +129,12 @@ def _tile_at(state: dict, pos: int) -> dict:
     return board[int(pos) % len(board)]
 
 
+def _tile_label(state: dict, tile_id: str) -> str:
+    tile = next((t for t in (state.get("board") or [])
+                 if str(t.get("id")) == str(tile_id)), {})
+    return str(tile.get("name", tile_id) or tile_id)
+
+
 def _require_active(state: dict) -> None:
     if state.get("finished") or state.get("phase") == "over":
         raise ValueError("Cricket Monopoly is complete.")
@@ -153,6 +162,86 @@ def _active_ids(state: dict) -> list[str]:
         pid for pid in (state.get("order") or [])
         if not _franchise(state, pid).get("out")
     ]
+
+
+def recompute_franchise(state: dict, pid: str) -> None:
+    """Refresh ownership-derived fields after any property changes hands.
+
+    A franchise is unlocked only with a batsman market, a bowler market, a
+    wicketkeeper market and at least one stadium. Its home ground is the first
+    stadium it bought, kept stable while that ground remains owned.
+    """
+    franchise = _franchise(state, pid)
+    if not franchise:
+        return
+    properties = state.get("properties") or {}
+    owned: list[str] = []
+    for tile_id in list(franchise.get("owned") or []) + list(properties):
+        tile_id = str(tile_id)
+        if tile_id not in owned and (properties.get(tile_id) or {}).get("owner") == pid:
+            owned.append(tile_id)
+
+    meta = {str(tile.get("id")): tile for tile in (state.get("board") or [])}
+    stadiums = [
+        tile_id for tile_id in owned
+        if (meta.get(tile_id) or {}).get("kind") == "stadium"
+    ]
+    roles = {
+        str((meta.get(tile_id) or {}).get("role") or "")
+        for tile_id in owned
+        if (meta.get(tile_id) or {}).get("kind") == "market"
+    }
+    franchise["unlocked"] = (
+        {"batsman", "bowler", "wicketkeeper"} <= roles and bool(stadiums)
+    )
+    current = franchise.get("home_ground")
+    if current is None or str(current) not in stadiums:
+        franchise["home_ground"] = stadiums[0] if stadiums else None
+    else:
+        franchise["home_ground"] = str(current)
+
+
+def _owns_stadium(state: dict, pid: str) -> bool:
+    """True while the manager still owns at least one stadium."""
+    properties = state.get("properties") or {}
+    return any(
+        (properties.get(str(tile.get("id"))) or {}).get("owner") == pid
+        for tile in (state.get("board") or [])
+        if tile.get("kind") == "stadium"
+    )
+
+
+def _fc_rent_due(state: dict, owner_pid: str, due_fc: int) -> int:
+    """Apply the +50% home-ground multiplier to FC rent (floored)."""
+    due = max(0, int(due_fc))
+    if _owns_stadium(state, owner_pid):
+        return (due * HOME_GROUND_RENT_FACTOR) // 2
+    return due
+
+
+def _upgrade_missing(state: dict, pid: str) -> list[str]:
+    """Human-readable list of missing franchise requirements."""
+    franchise = _franchise(state, pid)
+    properties = state.get("properties") or {}
+    owned = [
+        str(tile_id) for tile_id in (franchise.get("owned") or [])
+        if (properties.get(str(tile_id)) or {}).get("owner") == pid
+    ]
+    meta = {str(tile.get("id")): tile for tile in (state.get("board") or [])}
+    roles = {
+        str((meta.get(tile_id) or {}).get("role") or "")
+        for tile_id in owned
+        if (meta.get(tile_id) or {}).get("kind") == "market"
+    }
+    missing: list[str] = []
+    for role, label in (("batsman", "a batsman market"),
+                        ("bowler", "a bowler market"),
+                        ("wicketkeeper", "a wicketkeeper market")):
+        if role not in roles:
+            missing.append(label)
+    if not any((meta.get(tile_id) or {}).get("kind") == "stadium" for tile_id in owned):
+        missing.append("a ground")
+    return missing
 
 
 def _maybe_finish(state: dict) -> bool:
@@ -246,6 +335,8 @@ def new_state(lobby: dict, overrides: dict | None = None) -> dict:
             "injured": 0,
             "owned": [],
             "out": False,
+            "unlocked": False,
+            "home_ground": None,
         }
 
     state: dict[str, Any] = {
@@ -364,6 +455,7 @@ def _resolve_charge(state: dict, owner_pid: str, visitor_pid: str, tile: dict) -
     kind = str(tile.get("kind") or "")
     detail = ""
     short = False
+    home_note = " (home ground bonus)" if _owns_stadium(state, owner_pid) else ""
 
     if role == "wicketkeeper":
         due = 40 + price // 5 + level * 10
@@ -376,9 +468,11 @@ def _resolve_charge(state: dict, owner_pid: str, visitor_pid: str, tile: dict) -
         detail = f"pays {paid} runs"
     elif role == "bowler":
         due_runs = 30 + level * 5
-        due_fc = 20 + level * 10
+        due_fc = _fc_rent_due(state, owner_pid, 20 + level * 10)
         paid_runs, paid_fc, short = _pay(visitor, owner, due_runs, due_fc)
         detail = f"pays {paid_runs} runs and {paid_fc} FC"
+        if home_note:
+            detail += home_note
         if level >= MAX_LEVEL:
             bonus = _batsman_price(state, tile.get("country")) // 2
             owner["fc"] = int(owner.get("fc", 0)) + bonus
@@ -386,15 +480,23 @@ def _resolve_charge(state: dict, owner_pid: str, visitor_pid: str, tile: dict) -
             detail += f"; the elite bowler costs a wicket and {bonus} FC"
     elif role == "allrounder":
         total = sum(int(value) for value in (state.get("dice") or [0, 0]))
-        paid_runs, paid_fc, short = _pay(visitor, owner, total * 2, total * 8)
+        paid_fc = _fc_rent_due(state, owner_pid, total * 8)
+        paid_runs, paid_fc, short = _pay(visitor, owner, total * 2, paid_fc)
         detail = f"pays {paid_runs} runs and {paid_fc} FC on a dice total of {total}"
+        if home_note:
+            detail += home_note
     elif kind == "stadium":
-        due = price // 8 + level * 20
+        due = _fc_rent_due(state, owner_pid, price // 8 + level * 20)
         _, paid_fc, short = _pay(visitor, owner, due_fc=due)
         detail = f"pays {paid_fc} FC ground rent"
+        if home_note:
+            detail += home_note
     else:
-        _, paid_fc, short = _pay(visitor, owner, due_fc=20)
+        due = _fc_rent_due(state, owner_pid, 20)
+        _, paid_fc, short = _pay(visitor, owner, due_fc=due)
         detail = f"pays {paid_fc} FC"
+        if home_note:
+            detail += home_note
 
     if short:
         visitor["wickets"] = int(visitor.get("wickets", 0)) - 1
@@ -442,9 +544,18 @@ def _land_buyable(state: dict, pid: str, tile: dict) -> bool:
         return True
 
     if owner == pid:
-        text = f"{_name(franchise, pid)} owns {label} already."
-        state["last_event"] = {"type": "own", "text": text}
-        add_log(state, text, "info")
+        if tile.get("kind") == "stadium":
+            # Landing on your own ground is a bank bonus, never a rent charge.
+            franchise["fc"] = int(franchise.get("fc", 0)) + HOME_GROUND_FC
+            franchise["runs"] = int(franchise.get("runs", 0)) + HOME_GROUND_RUNS
+            text = (f"{_name(franchise, pid)} landed on their own ground {label} — "
+                    f"+{HOME_GROUND_FC} FC and +{HOME_GROUND_RUNS} runs from the bank.")
+            state["last_event"] = {"type": "home_ground", "text": text}
+            add_log(state, text, "bonus")
+        else:
+            text = f"{_name(franchise, pid)} owns {label} already."
+            state["last_event"] = {"type": "own", "text": text}
+            add_log(state, text, "info")
         return False
 
     _resolve_charge(state, owner, pid, tile)
@@ -564,6 +675,7 @@ def buy(state: dict, pid: str) -> str:
     franchise["fc"] = int(franchise["fc"]) - price
     prop["owner"] = pid
     franchise.setdefault("owned", []).append(tile_id)
+    recompute_franchise(state, pid)
     tile = next((t for t in state.get("board") or [] if str(t.get("id")) == tile_id), {})
     text = f"{_name(franchise, pid)} bought {tile.get('name', tile_id)} for {price} FC."
     state["pending"] = None
@@ -588,6 +700,106 @@ def decline(state: dict, pid: str) -> str:
     state["last_event"] = {"type": "decline", "text": text}
     add_log(state, text, "pass")
     advance_turn(state)
+    return "ok"
+
+
+def propose_trade(
+    state: dict, pid: str, target: str, give_tile: str, take_tile: str
+) -> str:
+    """Offer a one-for-one property swap; the turn marker stays with the proposer."""
+    _require_active(state)
+    _require_member(state, pid)
+    _require_turn(state, pid)
+    if state.get("pending"):
+        raise ValueError("Resolve the pending decision first.")
+
+    target = str(target or "")
+    _require_member(state, target)
+    if target == pid:
+        raise ValueError("Choose another manager to trade with.")
+    other = _franchise(state, target)
+    if other.get("out") or int(other.get("wickets", 0)) <= 0:
+        raise ValueError("That manager is all out and cannot trade.")
+
+    give_tile = str(give_tile or "")
+    take_tile = str(take_tile or "")
+    if not give_tile or not take_tile or give_tile == take_tile:
+        raise ValueError("Choose two different properties.")
+    properties = state.get("properties") or {}
+    give_prop = properties.get(give_tile)
+    take_prop = properties.get(take_tile)
+    if not give_prop or not take_prop:
+        raise ValueError("Unknown property.")
+    if give_prop.get("owner") != pid:
+        raise ValueError("You do not own the property you are offering.")
+    if take_prop.get("owner") != target:
+        raise ValueError("The other manager does not own that property.")
+
+    state["pending"] = {
+        "type": "trade", "pid": pid, "target": target,
+        "give_tile": give_tile, "take_tile": take_tile, "price": 0,
+    }
+    text = (f"{_name(_franchise(state, pid), pid)} offered {_tile_label(state, give_tile)} to "
+            f"{_name(other, target)} for {_tile_label(state, take_tile)}.")
+    state["last_event"] = {"type": "trade", "text": text}
+    add_log(state, text, "offer")
+    return "ok"
+
+
+def accept_trade(state: dict, pid: str) -> str:
+    """Accept a pending swap. The proposer keeps the turn and may still roll."""
+    _require_active(state)
+    _require_member(state, pid)
+    pending = state.get("pending") or {}
+    if pending.get("type") != "trade" or pending.get("target") != pid:
+        raise ValueError("No trade offer is pending for you.")
+
+    proposer = str(pending.get("pid") or "")
+    give_tile = str(pending.get("give_tile") or "")
+    take_tile = str(pending.get("take_tile") or "")
+    properties = state.get("properties") or {}
+    give_prop = properties.get(give_tile)
+    take_prop = properties.get(take_tile)
+    if (not give_prop or not take_prop or give_prop.get("owner") != proposer
+            or take_prop.get("owner") != pid):
+        raise ValueError("The trade is no longer available.")
+
+    give_prop["owner"] = pid
+    take_prop["owner"] = proposer
+    proposer_franchise = _franchise(state, proposer)
+    target_franchise = _franchise(state, pid)
+    for tile_id, old_owner, new_owner in (
+        (give_tile, proposer, pid), (take_tile, pid, proposer)
+    ):
+        old_list = (state.get("franchises") or {}).get(old_owner, {}).setdefault("owned", [])
+        if tile_id in old_list:
+            old_list.remove(tile_id)
+        (state.get("franchises") or {}).get(new_owner, {}).setdefault("owned", []).append(tile_id)
+    recompute_franchise(state, proposer)
+    recompute_franchise(state, pid)
+
+    state["pending"] = None
+    text = (f"{_name(target_franchise, pid)} accepted the trade with "
+            f"{_name(proposer_franchise, proposer)} — {_tile_label(state, give_tile)} and "
+            f"{_tile_label(state, take_tile)} swapped owners.")
+    state["last_event"] = {"type": "trade", "text": text}
+    add_log(state, text, "trade")
+    return "ok"
+
+
+def decline_trade(state: dict, pid: str) -> str:
+    """Decline a pending swap. The proposer keeps the turn."""
+    _require_active(state)
+    _require_member(state, pid)
+    pending = state.get("pending") or {}
+    if pending.get("type") != "trade" or pending.get("target") != pid:
+        raise ValueError("No trade offer is pending for you.")
+    proposer = str(pending.get("pid") or "")
+    text = (f"{_name(_franchise(state, pid), pid)} declined the trade offer from "
+            f"{_name(_franchise(state, proposer), proposer)}.")
+    state["pending"] = None
+    state["last_event"] = {"type": "trade_declined", "text": text}
+    add_log(state, text, "pass")
     return "ok"
 
 
@@ -656,6 +868,18 @@ def upgrade(state: dict, pid: str, tile_id: str) -> str:
     _require_active(state)
     _require_member(state, pid)
     _require_turn(state, pid)
+    recompute_franchise(state, pid)
+    franchise = _franchise(state, pid)
+    if not franchise.get("unlocked"):
+        missing = _upgrade_missing(state, pid)
+        text = (f"{_name(franchise, pid)} cannot upgrade yet — still needs "
+                f"{', '.join(missing)}.")
+        state["last_event"] = {"type": "locked", "text": text}
+        add_log(state, text, "lock")
+        raise ValueError(
+            "Upgrade locked: own a batsman market, a bowler market, "
+            f"a wicketkeeper market and a ground first (missing: {', '.join(missing)})."
+        )
     prop = (state.get("properties") or {}).get(str(tile_id))
     if not prop:
         raise ValueError("Unknown property.")
@@ -665,7 +889,6 @@ def upgrade(state: dict, pid: str, tile_id: str) -> str:
     if level >= MAX_LEVEL:
         raise ValueError("That property is already fully upgraded.")
     cost = UPGRADE_BASE_COST + level * UPGRADE_STEP_COST
-    franchise = _franchise(state, pid)
     if int(franchise.get("fc", 0)) < cost:
         raise ValueError(f"Not enough FC to upgrade ({cost} FC).")
 
@@ -686,6 +909,18 @@ def bot_action(state: dict, pid: str) -> None:
         return
 
     pending = state.get("pending") or {}
+    if pending.get("type") == "trade":
+        # A trade offer is addressed to its target, not to the current player.
+        if pending.get("target") != pid:
+            return
+        properties = state.get("properties") or {}
+        give_price = int((properties.get(str(pending.get("give_tile"))) or {}).get("price", 0))
+        take_price = int((properties.get(str(pending.get("take_tile"))) or {}).get("price", 0))
+        if take_price >= give_price:
+            accept_trade(state, pid)
+        else:
+            decline_trade(state, pid)
+        return
     if pending:
         if pending.get("pid") != pid:
             return
@@ -713,7 +948,7 @@ def bot_action(state: dict, pid: str) -> None:
         return
 
     franchise = _franchise(state, pid)
-    if _rng(state, "bot").random() < 0.25:
+    if franchise.get("unlocked") and _rng(state, "bot").random() < 0.25:
         candidates: list[str] = []
         for tile_id in franchise.get("owned") or []:
             prop = (state.get("properties") or {}).get(str(tile_id))

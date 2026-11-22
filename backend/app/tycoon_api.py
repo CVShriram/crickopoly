@@ -1,4 +1,4 @@
-"""HTTP + WebSocket API for Cricket Monopoly (ruleset 5).
+"""HTTP + WebSocket API for Cricket Monopoly (ruleset 6).
 
 Registered as /api/fg in main.py, replacing the old franchise router while
 keeping the same room codes, sessions, save table and socket envelope.
@@ -423,6 +423,20 @@ class TycoonHub:
         if action == "upgrade":
             tycoon.upgrade(state, pid, payload.get("tile_id"))
             return "ok"
+        if action == "trade":
+            tycoon.propose_trade(
+                state, pid,
+                payload.get("target") or payload.get("target_id"),
+                payload.get("give_tile") or payload.get("give"),
+                payload.get("take_tile") or payload.get("take"),
+            )
+            return "ok"
+        if action == "accept_trade":
+            tycoon.accept_trade(state, pid)
+            return "ok"
+        if action == "decline_trade":
+            tycoon.decline_trade(state, pid)
+            return "ok"
         raise ValueError(f"Unknown action: {action}")
 
     @staticmethod
@@ -430,7 +444,7 @@ class TycoonHub:
         state = room.state or {}
         managers = [
             [pid, f.get("pos"), f.get("fc"), f.get("runs"), f.get("wickets"),
-             len(f.get("owned") or [])]
+             len(f.get("owned") or []), f.get("unlocked"), f.get("home_ground")]
             for pid, f in sorted((state.get("franchises") or {}).items())
         ]
         properties = [
@@ -452,7 +466,10 @@ class TycoonHub:
             if state.get("finished"):
                 break
             pending = state.get("pending") or {}
-            actor = pending.get("pid") or state.get("current_player_id")
+            # Trade offers are answered by their target; every other pending
+            # decision belongs to the current player.
+            actor = (pending.get("target") if pending.get("type") == "trade"
+                     else pending.get("pid")) or state.get("current_player_id")
             franchise = (state.get("franchises") or {}).get(actor) or {}
             if not franchise.get("is_bot"):
                 break
