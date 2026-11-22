@@ -31,6 +31,7 @@ type Action =
   | { type: 'CONNECTED'; connected: boolean }
   | { type: 'BUSY'; busy: boolean }
   | { type: 'ERROR'; error: string | null }
+  | { type: 'STALE_SESSION'; message: string }
   | { type: 'EVENTS'; events: any[] }
   | { type: 'DISMISS'; id: number }
 
@@ -48,34 +49,14 @@ function writeSessions(sessions: Session[]) {
 const urlInfo = (() => {
   try {
     const p = new URLSearchParams(window.location.search)
-    return {
-      code: p.get('code'),
-      token: p.get('token'),
-      // Old invite links carried the host's token and name. A link with a
-      // name, or an explicit join flag, is always an invitation, never a
-      // login for the person who opens it.
-      invite: p.get('join') === '1' || Boolean(p.get('name')),
-    }
-  } catch { return { code: null, token: null, invite: false } }
+    return { code: p.get('code') }
+  } catch { return { code: null } }
 })()
 
-const urlSession: Session | null = (() => {
-  const { code, token, invite } = urlInfo
-  if (!code || !token || invite) return null
-  const session: Session = {
-    code: code.toUpperCase(), playerId: token,
-    name: 'Manager', avatar: '🏏', color: '#c8a24b',
-  }
-  const all = readSessions().filter(s => s.code !== session.code)
-  writeSessions([session, ...all])
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-  return session
-})()
-
-// An invitation opens the Join form instead of reusing the sender's session.
-const urlJoinCode: string | null = urlInfo.code && (urlInfo.invite || !urlInfo.token)
-  ? urlInfo.code.toUpperCase()
-  : null
+// Any room link is an invitation. Legacy links may still carry a token; it is
+// never reused as a login identity, so a stale token cannot trap the opener in
+// a broken session.
+const urlJoinCode: string | null = urlInfo.code ? urlInfo.code.toUpperCase() : null
 
 const storedSession: Session | null = (() => {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') } catch { return null }
@@ -85,9 +66,9 @@ if (urlJoinCode) {
 }
 
 const initial: AppState = {
-  session: urlSession || (urlJoinCode ? null : storedSession),
+  session: urlJoinCode ? null : storedSession,
   sessions: readSessions(),
-  view: urlSession ? 'board' : 'landing',
+  view: 'landing',
   state: null,
   gamedata: null,
   saved: [],
@@ -156,6 +137,14 @@ function reducer(state: AppState, action: Action): AppState {
     case 'CONNECTED': return { ...state, connected: action.connected }
     case 'BUSY': return { ...state, busy: action.busy }
     case 'ERROR': return { ...state, error: action.error, busy: false }
+    case 'STALE_SESSION':
+      localStorage.removeItem(SESSION_KEY)
+      return {
+        session: null, sessions: state.sessions, view: 'landing', state: null,
+        gamedata: state.gamedata, saved: state.saved, connected: false,
+        busy: false, error: action.message, toasts: state.toasts,
+        events: state.events, joinCode: null,
+      }
     case 'EVENTS': {
       const toasts = action.events.map(toastFor).filter((x): x is Toast => x !== null).slice(0, 4)
       return {
@@ -213,7 +202,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             // Server is authoritative about identity; keep the session in sync.
           }
         } else if (message.type === 'error') {
-          dispatch({ type: 'ERROR', error: message.message })
+          const text = String(message.message || '')
+          if (/invalid room link|room not found|forbidden/i.test(text)) {
+            socketRef.current?.close()
+            dispatch({
+              type: 'STALE_SESSION',
+              message: 'That room is no longer available. Start a new game or join with a fresh code.',
+            })
+            return
+          }
+          dispatch({ type: 'ERROR', error: text })
         }
       },
       connected => dispatch({ type: 'CONNECTED', connected }),
@@ -296,10 +294,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const remote = await api.getRoom(row.code)
       const known = app.sessions.find(s => s.code === row.code)
-      const token = known?.playerId || remote.host_id || row.host_id
+      const memberIds: string[] = remote.members?.map((m: any) => m.id) || []
+      const ids = [known?.playerId, remote.host_id, row.host_id].filter(Boolean) as string[]
+      const token = ids.find(id => remote.franchises?.[id] || memberIds.includes(id))
+        || remote.host_id || row.host_id
       const session: Session = {
         code: row.code, playerId: token,
-        name: known?.name || remote.franchises?.[token]?.name || 'Manager',
+        name: known && known.playerId === token ? known.name : remote.franchises?.[token]?.name || 'Manager',
         avatar: known?.avatar || remote.franchises?.[token]?.avatar || '🏏',
         color: known?.color || remote.franchises?.[token]?.color || '#c8a24b',
       }
