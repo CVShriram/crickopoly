@@ -1,111 +1,72 @@
-import { useEffect, useState } from 'react'
-import { api } from '../api'
+import React from 'react'
 import { useApp } from '../store'
+import { Avatar, Badge, Button, Empty, Panel, Stat } from '../components/UI'
+import { money } from '../utils'
 
 export function Results() {
-  const { app, dispatch } = useApp()
-  const state = app.state
-  const [history, setHistory] = useState<any[]>([])
-  useEffect(() => { api.history().then(setHistory).catch(() => setHistory([])) }, [])
-  const winner = state?.players.find(p => p.id === state.winner_id)
-  const victory = [...(state?.log || [])].reverse().find(e => e.type === 'victory')
-  const ranked = [...(state?.players || [])].sort((a, b) => {
-    if (a.id === state?.winner_id) return -1
-    if (b.id === state?.winner_id) return 1
-    if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1
-    return b.runs - a.runs
-  })
-  const rankingRows = state?.ranking?.length ? state.ranking : ranked.map(p => ({
-    player_id: p.id, name: p.name, avatar: p.avatar, runs: p.runs, money: p.money,
-    batsmen: p.active_batsmen, wickets: p.batsmen.filter(b => b.usable).reduce((s, b) => s + b.wickets, 0),
-    properties: p.property_count, upgrades: p.assets.reduce((s, a) => s + a.level, 0),
-    eliminated: p.eliminated,
-  }))
+  const { app, send, dispatch, refreshSaved } = useApp()
+  const state = app.state!
+  const champion = state.winner_id ? state.franchises[state.winner_id] : undefined
+  const finals = state.final_points || []
+  const isHost = state.host_id === app.session?.playerId
+
+  if (!state.finished) return (
+    <div className="page">
+      <Panel title="Season in progress" subtitle="The finale unlocks when the champion is decided" icon="⏳">
+        <Empty title="No final results yet" text="Finish the league and playoffs to see the champion." />
+        <Button onClick={() => dispatch({ type: 'VIEW', view: 'tournament' })}>View tournament table</Button>
+      </Panel>
+    </div>
+  )
 
   return (
-    <div className="screen-bg sub-screen">
-      <header className="screen-topbar">
-        <div className="brand-mark small"><span className="brand-ball">🏏</span> CRICKET <b>MONOPOLY</b></div>
-        <nav className="topbar-nav">
-          <button className="active">Results</button>
-          {state?.started && <button onClick={() => dispatch({ type: 'VIEW', view: 'game' })}>← Back to board</button>}
-          <button onClick={() => { dispatch({ type: 'STATE', state: null }); dispatch({ type: 'SESSION', session: null }); dispatch({ type: 'VIEW', view: 'landing' }) }}>Exit</button>
-        </nav>
-      </header>
+    <div className="page results-page">
+      <div className="trophy-hero">
+        <div className="confetti">{Array.from({ length: 18 }).map((_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</div>
+        <span className="trophy">🏆</span>
+        <small>SEASON {state.season} CHAMPION</small>
+        <h1>{champion?.name || 'Champion'}</h1>
+        <p>{state.mode === 'classic' ? 'The last franchise standing in Classic Survival.' : 'Highest combined championship, finance, squad, infrastructure and collection score.'}</p>
+        {champion && <div className="winner-stats">
+          <Stat label="Final points" value={finals.find(r => r.id === champion.id)?.total || 0} tone="gold" icon="⭐" />
+          <Stat label="Balance" value={money(champion.balance)} icon="💰" />
+          <Stat label="Record" value={`${champion.record.wins}–${champion.record.losses}`} icon="🏏" />
+          <Stat label="Assets" value={champion.markets.length + Object.keys(champion.stadiums).length} icon="🏟️" />
+        </div>}
+      </div>
 
-      {!state?.started ? (
-        <div className="sub-wrap">
-          <div className="panel-heading"><span className="eyebrow">MATCH ARCHIVE</span><h1>Past tournaments</h1></div>
-          <div className="history-list">
-            {history.length === 0 && <p className="muted">No completed matches yet.</p>}
-            {history.map((m, i) => (
-              <div key={i} className="history-row">
-                <strong>{m.winner_name || 'Unknown'}</strong>
-                <span>{m.players?.length} managers · {m.round} rounds</span>
-                <span className="muted">{m.finished_at}</span>
+      <div className="results-grid">
+        <Panel title="Final standings" subtitle="Standard Season 100-point scale" icon="🏆">
+          <table className="data-table">
+            <thead><tr><th>#</th><th>Franchise</th><th>Champ</th><th>Finance</th><th>Squad</th><th>Infra</th><th>Collect</th><th>Total</th></tr></thead>
+            <tbody>{finals.map(r => <tr key={r.id} className={r.id === state.winner_id ? 'champion' : ''}>
+              <td>{r.final_rank}</td><td><span className="team-color" style={{ background: r.color }} />{r.name}</td>
+              <td>{r.championship}</td><td>{r.finance}</td><td>{r.squad}</td><td>{r.infrastructure}</td>
+              <td>{r.collections}</td><td><strong>{r.total}</strong></td>
+            </tr>)}</tbody>
+          </table>
+        </Panel>
+
+        <Panel title="Franchise summaries" subtitle="Final position, record and portfolio" icon="📋">
+          <div className="summary-list">
+            {Object.values(state.franchises).map(f => (
+              <div key={f.id} className="summary-row">
+                <Avatar franchise={f} />
+                <div><strong>{f.name}</strong><small>{f.record.wins}W · {f.record.losses}L · {f.record.points + f.record.bonus} pts</small></div>
+                <Badge tone={f.id === state.winner_id ? 'gold' : 'default'}>{money(f.balance)}</Badge>
               </div>
             ))}
           </div>
-        </div>
-      ) : (
-        <div className="sub-wrap">
-          <div className="winner-banner">
-            <div className="trophy">🏆</div>
-            <span className="eyebrow">{state.phase === 'over' ? 'TOURNAMENT WINNER' : 'CURRENT LEADER'}</span>
-            <h1>{winner?.name || ranked[0]?.name || '—'}</h1>
-            <p>{victory?.payload?.reason || (state.victory_mode === 'turn_limit' ? `Turn-limit ranking · ${state.turn_limit} rounds` : 'Last manager standing')} · {ranked[0]?.runs ?? 0} runs · {ranked[0]?.money ?? 0} coins</p>
-            {state.started_at && <small>Match started {new Date(state.started_at).toLocaleString()}</small>}
-          </div>
+        </Panel>
+      </div>
 
-          <div className="results-grid">
-            <div className="result-card wide-result">
-              <div className="panel-heading"><span className="eyebrow">FINAL STANDINGS</span><h3>Ranking</h3></div>
-              <div className="final-ranking">
-                <div className="final-head"><span>#</span><span>Manager</span><span>Runs</span><span>Batsmen</span><span>Wickets</span><span>Coins</span><span>Assets</span></div>
-                {rankingRows.map((row, i) => (
-                  <div key={row.player_id} className={`final-row ${row.player_id === state.winner_id ? 'winner' : ''}`}>
-                    <span>{i + 1}</span>
-                    <span>{row.avatar} {row.name}{row.eliminated ? ' (OUT)' : ''}</span>
-                    <span>{row.runs}</span><span>{row.batsmen}</span><span>{row.wickets}</span>
-                    <span>{row.money}</span><span>{row.properties + row.upgrades}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="hint">Ranking order: runs → wickets → batsmen → coins → properties & upgrades.</p>
-            </div>
-            <div className="result-card">
-              <div className="panel-heading"><span className="eyebrow">RUNS</span><h3>Scoring chart</h3></div>
-              {[...ranked].sort((a, b) => b.runs - a.runs).map(p => (
-                <div key={p.id} className="bar-row">
-                  <span>{p.name}</span>
-                  <div className="bar-track"><i style={{ width: `${Math.min(100, p.runs * 2)}%`, background: p.color }} /></div>
-                  <strong>{p.runs}</strong>
-                </div>
-              ))}
-            </div>
-            <div className="result-card">
-              <div className="panel-heading"><span className="eyebrow">WICKETS</span><h3>Bowling figures</h3></div>
-              {[...ranked].sort((a, b) => (b.stats.wickets_taken || 0) - (a.stats.wickets_taken || 0)).map(p => (
-                <div key={p.id} className="bar-row">
-                  <span>{p.name}</span>
-                  <div className="bar-track"><i style={{ width: `${Math.min(100, (p.stats.wickets_taken || 0) * 12)}%`, background: p.color }} /></div>
-                  <strong>{p.stats.wickets_taken || 0}</strong>
-                </div>
-              ))}
-            </div>
-            <div className="result-card">
-              <div className="panel-heading"><span className="eyebrow">ECONOMY</span><h3>Wealth</h3></div>
-              {[...ranked].sort((a, b) => b.money - a.money).map(p => (
-                <div key={p.id} className="bar-row">
-                  <span>{p.name}</span>
-                  <div className="bar-track"><i style={{ width: `${Math.min(100, p.money / 25)}%`, background: p.color }} /></div>
-                  <strong>{p.money}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="end-actions">
+        <Button variant="gold" onClick={() => dispatch({ type: 'VIEW', view: 'tournament' })}>Full tournament table</Button>
+        {isHost && <Button variant="subtle" onClick={() => { send('restart', {}); refreshSaved(); dispatch({ type: 'VIEW', view: 'draft' }) }}>
+          🔁 Restart season
+        </Button>}
+        <Button variant="subtle" onClick={() => dispatch({ type: 'VIEW', view: 'ledger' })}>Review ledger</Button>
+      </div>
     </div>
   )
 }

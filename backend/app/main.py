@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import config
+from . import config, franchise_api, franchise_persistence as fdb
 from .game.board import serialize_board
 from .persistence import (global_leaderboard, init_db, load_rooms,
                           match_history, save_room)
@@ -25,23 +25,28 @@ from .ws import hub
 # Ensure the schema exists even when the app is imported in a test client
 # that does not run the ASGI lifespan. Safe and idempotent.
 init_db()
+fdb.init_db()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    fdb.init_db()
     for state, host_id, created_at in load_rooms():
         manager.restore(state, host_id, created_at)
+    franchise_api.manager.restore()
     stop = asyncio.Event()
     task = asyncio.create_task(hub.tick_loop(stop))
+    fg_task = asyncio.create_task(franchise_api.hub.tick_loop(stop))
     try:
         yield
     finally:
         stop.set()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        for background in (task, fg_task):
+            try:
+                await background
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="Cricket Monopoly API", version="1.0.0", lifespan=lifespan)
@@ -56,6 +61,9 @@ app.add_middleware(
     allow_origins=_cors_origins, allow_credentials=True,
     allow_methods=["*"], allow_headers=["*"],
 )
+
+# Franchise game API (registered before the SPA catch-all at the bottom).
+app.include_router(franchise_api.router)
 
 
 class CreateRoomIn(BaseModel):

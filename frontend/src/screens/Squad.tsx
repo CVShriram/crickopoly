@@ -1,186 +1,192 @@
-import { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../store'
-import { sound } from '../sound'
-import { BatsmanAvatar } from '../components/BatsmanAvatar'
-import { UpgradeModal } from '../components/Modals'
-import { activeBatsman, type Asset, type Batsman } from '../types'
-
-const GROUPS: Array<{ kind: Asset['kind']; label: string; icon: string }> = [
-  { kind: 'bowler', label: 'Bowlers', icon: '🎯' },
-  { kind: 'keeper', label: 'Wicket Keepers', icon: '🧤' },
-  { kind: 'fielder', label: 'Fielders', icon: '🥎' },
-  { kind: 'stadium', label: 'Stadiums', icon: '🏟️' },
-]
+import type { PlayerData, Role } from '../types'
+import { Badge, Button, Empty, Meter, Modal, Panel, PlayerPortrait, Segmented, Stat } from '../components/UI'
+import { conditionOf, effective, money, roleClass, titleCase } from '../utils'
 
 export function Squad() {
-  const { app, dispatch, send } = useApp()
-  const state = app.state
-  const me = state?.players.find(p => p.id === app.session?.playerId)
-  const [target, setTarget] = useState('')
-  const [giveAssets, setGiveAssets] = useState<string[]>([])
-  const [wantAssets, setWantAssets] = useState<string[]>([])
-  const [giveMoney, setGiveMoney] = useState(0)
-  const [wantMoney, setWantMoney] = useState(0)
-  const [upgrade, setUpgrade] = useState<Batsman | null>(null)
+  const { app, send } = useApp()
+  const state = app.state!
+  const f = state.you ? state.franchises[state.you] : undefined
+  const [xi, setXi] = useState<string[]>(f?.xi || [])
+  const [captain, setCaptain] = useState<string | null>(f?.captain || null)
+  const [vice, setVice] = useState<string | null>(f?.vice || null)
+  const [filter, setFilter] = useState<'all' | Role>('all')
+  const [trainingPlayer, setTrainingPlayer] = useState<string | null>(null)
+  const [trainingType, setTrainingType] = useState('batting')
 
-  if (!state || !me) return <div className="screen-bg loading-screen">Loading squad…</div>
+  useEffect(() => { setXi(f?.xi || []); setCaptain(f?.captain || null); setVice(f?.vice || null) }, [f?.xi, f?.captain, f?.vice])
 
-  const toggle = (list: string[], set: (v: string[]) => void, id: string) =>
-    set(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
+  const squad = useMemo(() => Object.keys(f?.squad || {}).map(id => {
+    const p = state.gamedata?.players?.find(x => x.id === id)
+    return p ? { player: p, contract: f!.squad[id], cond: conditionOf(f, id) } : null
+  }).filter(Boolean) as Array<{ player: PlayerData; contract: any; cond: any }>, [f, state.gamedata])
 
-  const propose = () => {
-    if (!target || (giveAssets.length === 0 && giveMoney === 0 && wantAssets.length === 0 && wantMoney === 0)) return
-    sound.play('click')
-    send('trade', { to: target, give_assets: giveAssets, give_money: giveMoney,
-      want_assets: wantAssets, want_money: wantMoney })
-    setGiveAssets([]); setWantAssets([]); setGiveMoney(0); setWantMoney(0); setTarget('')
+  const filtered = squad.filter(x => filter === 'all' || x.player.role === filter)
+  const selected = new Set(xi)
+  const roleCounts = (ids: string[]) => ids.reduce<Record<string, number>>((acc, id) => {
+    const role = squad.find(x => x.player.id === id)?.player.role
+    if (role) acc[role] = (acc[role] || 0) + 1
+    return acc
+  }, {})
+  const counts = roleCounts(xi)
+  const limits = state.gamedata?.rules?.xi_roles || {
+    batsman: { min: 3, max: 5 }, bowler: { min: 3, max: 5 },
+    wicketkeeper: { min: 1, max: 2 }, allrounder: { min: 1, max: 3 },
+  }
+  const violations: string[] = []
+  if (xi.length !== 11) violations.push(`Playing XI must have exactly 11 players (currently ${xi.length})`)
+  ;(Object.keys(limits) as Role[]).forEach(role => {
+    const n = counts[role] || 0
+    const lim = limits[role]
+    if (n < lim.min) violations.push(`Need at least ${lim.min} ${lim.lowercase || titleCase(role).toLowerCase()}(s)`)
+    if (n > lim.max) violations.push(`At most ${lim.max} ${titleCase(role).toLowerCase()}(s) allowed`)
+  })
+  if (captain && !selected.has(captain)) violations.push('Captain must be in the XI')
+  if (vice && !selected.has(vice)) violations.push('Vice-captain must be in the XI')
+  if (captain && vice && captain === vice) violations.push('Captain and vice must be different')
+  const injuredSelected = xi.some(id => conditionOf(f, id).injury)
+  if (injuredSelected) violations.push('Injured players cannot be selected')
+
+  const toggle = (id: string) => {
+    if (selected.has(id)) {
+      setXi(xi.filter(x => x !== id))
+      if (captain === id) setCaptain(null)
+      if (vice === id) setVice(null)
+    } else if (xi.length < 11) {
+      setXi([...xi, id])
+    }
   }
 
-  const otherPlayers = state.players.filter(p => p.id !== me.id && !p.eliminated)
-  const theirAssets = otherPlayers.find(p => p.id === target)?.assets.filter(a => a.space_id !== null) || []
-  const active = activeBatsman(me)
+  const save = () => send('set_xi', { xi, captain, vice })
+  const trainingPlayerObj = squad.find(x => x.player.id === trainingPlayer)
 
   return (
-    <div className="screen-bg sub-screen">
-      <header className="screen-topbar">
-        <div className="brand-mark small"><span className="brand-ball">🏏</span> CRICKET <b>MONOPOLY</b></div>
-        <nav className="topbar-nav">
-          <button className="active" onClick={() => dispatch({ type: 'VIEW', view: 'squad' })}>Squad</button>
-          <button onClick={() => dispatch({ type: 'VIEW', view: 'game' })}>← Back to board</button>
-        </nav>
-      </header>
-
-      <div className="sub-wrap">
-        <div className="sub-head">
-          <div>
-            <span className="eyebrow">TEAM MANAGEMENT</span>
-            <h1>Your squad</h1>
-            <p className="muted">Upgrade batsmen to multiply sixes, manage defensive properties, or negotiate a trade.</p>
-          </div>
-          <div className="head-metrics">
-            <div><span>Money</span><strong>{me.money.toLocaleString()}</strong></div>
-            <div><span>Runs</span><strong>{me.runs}</strong></div>
-            <div><span>Properties</span><strong>{me.property_count}</strong></div>
-          </div>
+    <div className="page squad-page">
+      <div className="page-head">
+        <div><small>SQUAD & SELECTION</small><h1>Build your Playing XI</h1>
+          <p>Exactly 11 players, valid role mix, fit bodies and a clear leadership group.</p></div>
+        <div className="button-row">
+          <Button variant="subtle" onClick={() => send('auto_xi', {})}>✨ Auto-select XI</Button>
+          <Button variant="gold" onClick={save} disabled={violations.length > 0}>Save XI ({xi.length}/11)</Button>
         </div>
-
-        <section className="squad-roster">
-          <div className="panel-heading">
-            <span className="eyebrow">🏏 BATSMEN</span>
-            <h3>{me.batsmen.length} / 5 signed · {active?.name ?? 'none active'}</h3>
-          </div>
-          <div className="squad-roster-grid">
-            {me.batsmen.map(b => (
-              <article key={b.id} className={`squad-batsman ${b.id === active?.id ? 'active' : ''} ${!b.usable ? 'retired' : ''}`}
-                style={{ ['--jersey' as any]: b.jersey_color }}>
-                <BatsmanAvatar person={b} size="small" />
-                <strong>{b.name}</strong>
-                <span>{b.country} · Level {b.level}</span>
-                <div className="batsman-mini-stats">
-                  <span>🏏 {b.wickets}/{b.max_wickets}</span>
-                  <span>🚀 {b.six_runs}</span>
-                </div>
-                <button className="btn small gold" disabled={b.retired || b.level >= 5}
-                  onClick={() => { sound.play('click'); setUpgrade(b) }}>
-                  {b.level >= 5 ? 'Max level' : `Upgrade · ${b.upgrade_cost ?? 0}`}
-                </button>
-              </article>
-            ))}
-            {me.batsmen.length === 0 && <p className="muted">No batsmen signed yet.</p>}
-          </div>
-        </section>
-
-        <div className="squad-grid">
-          {GROUPS.map(group => {
-            const assets = me.assets.filter(a => a.kind === group.kind && a.space_id !== null)
-            return (
-              <section key={group.kind} className="squad-group">
-                <div className="panel-heading">
-                  <span className="eyebrow">{group.icon} {group.label.toUpperCase()}</span>
-                  <h3>{assets.length} owned</h3>
-                </div>
-                <div className="asset-list">
-                  {assets.length === 0 && <p className="muted empty-note">No {group.label.toLowerCase()} owned yet.</p>}
-                  {assets.map(asset => (
-                    <article key={asset.id} className="asset-card">
-                      <div className="asset-top">
-                        <span className="asset-icon">{group.icon}</span>
-                        <div className="asset-title">
-                          <strong>{asset.name}</strong>
-                          <span className="muted">{asset.config?.blurb || 'Club player'}</span>
-                        </div>
-                        <span className="level-tag">LVL {asset.level + 1}</span>
-                      </div>
-                      <div className="asset-stats">
-                        <span>Landing fee <b>{asset.effective_fee ?? 0}</b></span>
-                        {asset.kind === 'keeper' && <span>Run penalty <b>{asset.run_penalty ?? 0}</b></span>}
-                        {asset.kind === 'stadium' && <span>Boost <b>{Math.round((asset.effective_boost ?? 0) * 100)}%</b></span>}
-                        <span>Value <b>{asset.sale_value ?? 0}</b></span>
-                      </div>
-                      <div className="asset-actions">
-                        <button className="btn small" disabled={asset.level >= 3 || me.money < (asset.upgrade_cost ?? 9999)}
-                          onClick={() => { sound.play('buy'); send('upgrade', { asset_id: asset.id }) }}>
-                          Upgrade property · {asset.upgrade_cost ?? 0}
-                        </button>
-                        <button className="btn small ghost" onClick={() => { sound.play('money'); send('sell', { asset_id: asset.id }) }}>
-                          Sell · +{asset.sale_value ?? 0}
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )
-          })}
-        </div>
-
-        <section className="trade-builder">
-          <div className="panel-heading">
-            <span className="eyebrow">NEGOTIATION TABLE</span>
-            <h3>Propose a trade</h3>
-          </div>
-          <div className="trade-grid">
-            <div>
-              <label className="field"><span>Trade with</span>
-                <select value={target} onChange={e => { setTarget(e.target.value); setWantAssets([]) }}>
-                  <option value="">Select a manager…</option>
-                  {otherPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </label>
-              <h4>You give</h4>
-              <div className="trade-assets">
-                {me.assets.filter(a => a.space_id !== null).map(a => (
-                  <button key={a.id} className={`chip ${giveAssets.includes(a.id) ? 'selected' : ''}`}
-                    onClick={() => toggle(giveAssets, setGiveAssets, a.id)}>{a.name}</button>
-                ))}
-              </div>
-              <label className="field"><span>Your coins</span>
-                <input type="number" min={0} max={me.money} value={giveMoney}
-                  onChange={e => setGiveMoney(Math.max(0, Number(e.target.value)))} />
-              </label>
-            </div>
-            <div className="trade-divider">⇄</div>
-            <div>
-              <h4>You receive</h4>
-              <div className="trade-assets">
-                {theirAssets.map(a => (
-                  <button key={a.id} className={`chip ${wantAssets.includes(a.id) ? 'selected' : ''}`}
-                    onClick={() => toggle(wantAssets, setWantAssets, a.id)}>{a.name}</button>
-                ))}
-              </div>
-              <label className="field"><span>Their coins</span>
-                <input type="number" min={0} value={wantMoney}
-                  onChange={e => setWantMoney(Math.max(0, Number(e.target.value)))} />
-              </label>
-            </div>
-          </div>
-          <button className="btn primary" disabled={!target} onClick={propose}>Send trade offer</button>
-          <p className="hint">Both managers must agree. Assets and coins are validated again when accepted.</p>
-        </section>
       </div>
 
-      {upgrade && <UpgradeModal batsman={upgrade} me={me} config={app.config} send={send}
-        onClose={() => setUpgrade(null)} />}
+      <div className="dashboard-strip compact">
+        <Stat label="Squad size" value={`${squad.length}/15`} icon="👥" />
+        <Stat label="XI selected" value={xi.length} tone={xi.length === 11 ? 'green' : 'gold'} icon="✅" />
+        <Stat label="Injured" value={squad.filter(x => x.cond.injury).length} tone="danger" icon="🚑" />
+        <Stat label="Avg fatigue" value={`${Math.round(squad.reduce((a, x) => a + x.cond.fatigue, 0) / Math.max(1, squad.length))}%`} icon="🔋" />
+        <Stat label="Spent on contracts" value={money(squad.reduce((a, x) => a + (x.contract.price || 0), 0))} icon="💸" />
+      </div>
+
+      <div className="squad-layout">
+        <Panel title="Contracted players" subtitle="Click to toggle your XI · use the action button to train or recover" icon="👥"
+          action={<Segmented value={filter} onChange={setFilter} options={[
+            { value: 'all', label: 'All' }, { value: 'batsman', label: 'Bat' },
+            { value: 'bowler', label: 'Bowl' }, { value: 'wicketkeeper', label: 'WK' },
+            { value: 'allrounder', label: 'AR' },
+          ]} />}>
+          {filtered.length === 0 ? <Empty title="No players in this role" /> : (
+            <div className="squad-grid">
+              {filtered.map(({ player, contract, cond }) => {
+                const inXI = selected.has(player.id)
+                return (
+                  <div key={player.id} className={`squad-card ${inXI ? 'selected' : ''} ${cond.injury ? 'injured' : ''}`}>
+                    <button type="button" className="squad-select" onClick={() => toggle(player.id)}>
+                      <PlayerPortrait player={player} injured={Boolean(cond.injury)} />
+                      <div className="squad-card-main">
+                        <strong>{player.name} {player.id === captain && <span className="captain-tag">C</span>}
+                          {player.id === vice && <span className="captain-tag vice">VC</span>}</strong>
+                        <small>{player.flag} {titleCase(player.role)} · {player.tier} · {money(contract.price)}</small>
+                      </div>
+                      <span className={`role-tag ${roleClass(player.role)}`}>{state.gamedata?.role_short?.[player.role]}</span>
+                    </button>
+                    <div className="squad-ratings">
+                      <span>OVR <b>{effective(player, cond, 'overall')}</b></span>
+                      <span>BAT <b>{effective(player, cond, 'batting')}</b></span>
+                      <span>BWL <b>{effective(player, cond, 'bowling')}</b></span>
+                      <span>FRM <b>{cond.form}</b></span>
+                    </div>
+                    <div className="squad-bars">
+                      <Meter value={cond.fatigue} tone={cond.fatigue > 60 ? 'danger' : 'blue'} label={`Fatigue ${cond.fatigue}`} />
+                      <Meter value={cond.fitness} tone="green" label={`Fitness ${cond.fitness}`} />
+                      <Meter value={cond.confidence} tone="gold" label={`Confidence ${cond.confidence}`} />
+                    </div>
+                    {cond.injury && <div className="injury-note">{cond.injury.icon} {cond.injury.type} · {cond.injury.matches_left} match(es)</div>}
+                    <div className="squad-actions">
+                      <button type="button" onClick={() => setTrainingPlayer(player.id)}>🏋️ Train</button>
+                      {cond.injury
+                        ? <button type="button" onClick={() => send('rehabilitate', { player_id: player.id })}>🩹 Rehab {money(cond.injury.cost)}</button>
+                        : <button type="button" onClick={() => send('rest', { player_id: player.id })}>💤 Rest</button>}
+                      {player.id === captain
+                        ? <button type="button" onClick={() => setCaptain(null)}>Remove C</button>
+                        : <button type="button" onClick={() => setCaptain(player.id)} disabled={!inXI}>Set C</button>}
+                      {player.id === vice
+                        ? <button type="button" onClick={() => setVice(null)}>Remove VC</button>
+                        : <button type="button" onClick={() => setVice(player.id)} disabled={!inXI}>Set VC</button>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Panel>
+
+        <aside className="selection-side">
+          <Panel title="XI validator" subtitle="Role constraints and selection checks" icon="✅"
+            action={violations.length === 0 ? <Badge tone="green">VALID</Badge> : <Badge tone="danger">{violations.length} ISSUES</Badge>}>
+            <div className="role-counts">
+              {(Object.keys(limits) as Role[]).map(role => {
+                const n = counts[role] || 0
+                const lim = limits[role]
+                const ok = n >= lim.min && n <= lim.max
+                return <div key={role} className={ok ? 'ok' : 'bad'}>
+                  <span>{state.gamedata?.role_labels?.[role] || titleCase(role)}</span>
+                  <strong>{n} / {lim.min}–{lim.max}</strong>
+                </div>
+              })}
+            </div>
+            {violations.length === 0
+              ? <div className="callout success"><strong>Ready for matchday</strong><p>Your XI satisfies every selection rule.</p></div>
+              : <ul className="issue-list">{violations.map((v, i) => <li key={i}>{v}</li>)}</ul>}
+            <div className="xi-list">
+              {xi.map(id => {
+                const p = squad.find(x => x.player.id === id)?.player
+                if (!p) return null
+                return <div key={id} className="xi-row">
+                  <PlayerPortrait player={p} size="sm" />
+                  <span>{p.name}</span>
+                  <small>{id === captain ? 'C' : id === vice ? 'VC' : state.gamedata?.role_short?.[p.role]}</small>
+                </div>
+              })}
+              {Array.from({ length: Math.max(0, 11 - xi.length) }).map((_, i) =>
+                <div key={`empty-${i}`} className="xi-row empty">Empty slot</div>)}
+            </div>
+          </Panel>
+          <Panel title="Training & recovery" subtitle="Attributes improve before your eyes" icon="🏋️">
+            <p className="muted">Select a player card then choose a camp. Training costs FC and adds fatigue; injured players require rehabilitation instead.</p>
+            <div className="training-rates">
+              {Object.entries(state.gamedata?.training || {}).map(([key, spec]: any) =>
+                <div key={key}><span>{spec.icon} {spec.name}</span><strong>{money(spec.cost)}</strong></div>)}
+            </div>
+          </Panel>
+        </aside>
+      </div>
+
+      {trainingPlayer && (
+        <Modal title={`Train ${trainingPlayerObj?.player.name || ''}`} subtitle="Choose a development camp" onClose={() => setTrainingPlayer(null)}>
+          <div className="training-options">
+            {Object.entries(state.gamedata?.training || {}).map(([key, spec]: any) => (
+              <button key={key} type="button" onClick={() => { send('train', { player_id: trainingPlayer, type: key }); setTrainingPlayer(null) }}>
+                <span className="train-icon">{spec.icon}</span>
+                <span><strong>{spec.name}</strong><small>{spec.desc || `Improve ${spec.attr} by up to ${spec.gain}`}</small></span>
+                <b>{money(spec.cost)}</b>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

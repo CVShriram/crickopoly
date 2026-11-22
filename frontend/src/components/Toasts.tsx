@@ -5,20 +5,20 @@ export function Toasts() {
   const { app, dispatch } = useApp()
   useEffect(() => {
     if (!app.toasts.length) return
-    const timers = app.toasts.map(t => window.setTimeout(() => dispatch({ type: 'DISMISS', id: t.id }), 3200))
-    return () => timers.forEach(clearTimeout)
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'DISMISS', id: app.toasts[0].id })
+    }, 3800)
+    return () => window.clearTimeout(timer)
   }, [app.toasts, dispatch])
 
   return (
     <div className="toast-stack">
       {app.toasts.map(toast => (
-        <div key={toast.id} className={`toast toast-${toast.tone}`}>
+        <button type="button" key={toast.id} className={`toast toast-${toast.tone}`}
+          onClick={() => dispatch({ type: 'DISMISS', id: toast.id })}>
           <span className="toast-icon">{toast.icon}</span>
-          <div>
-            <strong>{toast.title}</strong>
-            {toast.text && <p>{toast.text}</p>}
-          </div>
-        </div>
+          <span><strong>{toast.title}</strong><small>{toast.text}</small></span>
+        </button>
       ))}
     </div>
   )

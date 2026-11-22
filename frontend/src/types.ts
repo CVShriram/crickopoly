@@ -1,269 +1,242 @@
-export interface Asset {
-  id: string
-  owner_id: string
-  space_id: number | null
-  kind: 'bowler' | 'keeper' | 'fielder' | 'stadium' | 'batsman'
-  category: string
-  name: string
-  level: number
-  wickets: number
-  max_wickets: number
-  runs: number
-  active: boolean
-  injured_until_round: number
-  debuff_until_round: number
-  config: Record<string, any>
-  is_out?: boolean
-  effective_fee?: number
-  effective_rent?: number
-  effective_reward?: number
-  effective_block?: number
-  effective_cut?: number
-  effective_boost?: number
-  run_penalty?: number
-  purchase_value?: number
-  upgrade_cost?: number
-  sale_value?: number
-}
+export type Role = 'batsman' | 'bowler' | 'wicketkeeper' | 'allrounder'
+export type Tier = 'bronze' | 'silver' | 'gold'
 
-export interface Batsman {
+export interface PlayerData {
   id: string
-  owner_id: string
   name: string
-  identity_id: string | null
   country: string
-  avatar: string
-  jersey_color: string
-  jersey_number: number
-  skin: string
-  hair: string
-  face: string
-  hair_color: string
-  is_custom: boolean
-  level: number
-  wickets: number
-  max_wickets: number
-  retired: boolean
-  runs: number
-  injured_until_round: number
-  six_runs: number
-  upgrade_cost: number | null
-  usable: boolean
+  flag: string
+  role: Role
+  tier: Tier
+  overall: number
+  batting: number
+  bowling: number
+  fielding: number
+  fitness: number
+  consistency: number
+  form: number
+  confidence: number
+  abilities: Record<string, number>
+  value: number
+  portrait_hue: number
 }
 
-export interface Debt {
-  payer_id: string
-  receiver_id: string | null
-  amount: number
-  reason: string
-  paid: number
-  original: number
-  expires_at: number
-}
-
-export interface Selection {
-  identity_id?: string | null
-  is_custom?: boolean
-  name?: string
+export interface Tile {
+  position: number
+  kind: 'market' | 'stadium' | 'event' | 'corner'
+  id: string
+  name: string
+  icon: string
+  desc: string
   country?: string
-  avatar?: string
-  jersey_color?: string
-  jersey_number?: number
-  skin?: string
-  hair?: string
-  face?: string
-  hair_color?: string
-  [key: string]: any
+  role?: Role
+  price?: number
+  pitch?: string
+  landing_fee?: number
+  match_revenue?: number
+  short?: string
 }
 
-export interface Player {
+export interface GameData {
+  countries: Record<string, { name: string; flag: string; color: string }>
+  roles: Role[]
+  role_labels: Record<Role, string>
+  role_short: Record<Role, string>
+  tiers: Tier[]
+  pitches: Record<string, { name: string; icon: string; desc: string }>
+  board: Tile[]
+  players: PlayerData[]
+  stadiums: Record<string, any>
+  stadium_upgrades: Record<string, { name: string; cost: number; desc: string }>
+  events: Record<string, { name: string; icon: string; desc: string }>
+  sponsors: Array<{ id: string; name: string; icon: string; per_round: number; reputation: number }>
+  training: Record<string, { name: string; cost: number; attr: string; gain: number; icon: string }>
+  injuries: Record<string, { name: string; matches: number; cost: number; icon: string }>
+  tactical_cards: Record<string, { id: string; name: string; icon: string; desc: string; phase: string }>
+  rules: Record<string, any>
+}
+
+export interface Condition {
+  fatigue: number
+  form: number
+  confidence: number
+  fitness: number
+  injury: null | { type: string; severity: string; matches_left: number; cost: number; icon: string }
+  matches_played: number
+  training: string[]
+  trained_attrs?: Record<string, number>
+}
+
+export interface Franchise {
   id: string
   name: string
   avatar: string
   color: string
-  money: number
-  runs: number
-  position: number
-  connected: boolean
-  ready: boolean
-  is_host: boolean
+  is_host?: boolean
   is_bot?: boolean
-  bot_strategy?: string
-  eliminated: boolean
-  assets: Asset[]
-  batsmen: Batsman[]
-  active_batsman_id: string | null
-  selection: Selection
-  no_ball_turns: number
-  no_ball_protection: number
-  gift_round: number
-  debt: Debt | null
-  effects: Record<string, any>
-  stats: Record<string, number>
-  achievements: string[]
-  property_count: number
-  active_batsmen: number
+  difficulty?: string
+  balance: number
+  reputation: number
+  pos: number
+  squad: Record<string, { price: number; tier: Tier }>
+  xi: string[]
+  captain: string | null
+  vice: string | null
+  markets: number[]
+  stadiums: Record<string, string[]>
+  sponsors: string[]
+  cards: string[]
+  conditions: Record<string, Condition>
+  record: {
+    played: number; wins: number; losses: number; ties: number; points: number; bonus: number
+    runs_for: number; runs_against: number; overs_for: number; overs_against: number
+  }
+  fatigue: number
+  last_action: string
 }
 
-export interface Space {
-  id: number
+export interface StandingRow {
+  id: string
   name: string
-  type: string
-  category: string | null
-  kind: string | null
-  price: number
-  description: string
+  color: string
+  played: number
+  wins: number
+  losses: number
+  ties: number
+  points: number
+  nrr: number
+  runs_for: number
+  record: string
+  rank: number
 }
 
-export interface GameEvent {
-  type: string
-  payload: Record<string, any>
-}
-
-export interface Pending {
-  type: string
-  player_id: string
-  space_id?: number
-  batsman_id?: string
-  extra_roll?: boolean
-  expires_at: number
-  [key: string]: any
-}
-
-export interface MarketOption {
-  identity_id: string
+export interface FinalRow {
+  id: string
   name: string
-  country: string
-  avatar: string
-  jersey_color: string
-  jersey_number: number
-  price: number
-  wickets: number
-  level: number
-  available: boolean
+  color: string
+  championship: number
+  finance: number
+  squad: number
+  infrastructure: number
+  collections: number
+  total: number
+  league_points: number
+  rank: number
+  final_rank: number
 }
 
-export interface Market {
-  player_id: string
-  price: number
-  options: MarketOption[]
-  expires_at: number
+export interface Trade {
+  id: string
+  from: string
+  to: string
+  give: { players: string[]; stadiums: number[]; sponsors: string[]; cards: string[]; cash: number }
+  want: { players: string[]; stadiums: number[]; sponsors: string[]; cards: string[]; cash: number }
+  message: string
+  status: 'pending' | 'executed' | 'rejected' | 'cancelled'
+  created_at: number
+  round: number
 }
 
-export interface Auction {
-  space_id: number
-  space: Space
-  started_by: string
-  ends_at: number
-  highest_bid: number
-  highest_bidder: string | null
-  bids: Array<{ player_id: string; amount: number }>
-  extra_roll?: boolean
-}
-
-export interface RankingRow {
-  player_id: string
-  name: string
-  avatar: string
-  runs: number
-  money: number
-  batsmen: number
-  wickets: number
-  properties: number
-  upgrades: number
-  eliminated: boolean
+export interface MatchRecord {
+  id: string
+  round: number
+  a: string
+  b: string
+  a_name: string
+  b_name: string
+  a_runs: number
+  a_wickets: number
+  b_runs: number
+  b_wickets: number
+  winner: string | null
+  winner_name: string
+  pitch: string
+  seed: number
+  analysis: string
+  player_of_match: string | null
+  phases_a: any[]
+  phases_b: any[]
+  tactics: Record<string, any>
+  playoff_stage?: string
 }
 
 export interface GameState {
   room_id: string
   code: string
-  players: Player[]
-  order: string[]
-  current_player_id: string | null
+  host_id?: string
+  mode: 'standard' | 'classic'
+  phase: 'draft' | 'season' | 'playoffs' | 'over' | 'lobby'
+  season: number
   round: number
-  phase: string
+  current_player_id: string | null
+  order: string[]
   started: boolean
+  finished: boolean
   winner_id: string | null
+  pitch: string
+  settings: Record<string, any>
+  franchises: Record<string, Franchise>
+  players: PlayerData[]
+  board: Tile[]
+  ownership: Record<string, string>
+  auctions: Record<string, any>
+  auction: any | null
+  pending: any | null
+  matches: MatchRecord[]
+  transactions: any[]
+  log: any[]
+  events: any[]
   dice: number[]
-  doubles_count: number
-  log: Array<{ round: number; type: string; payload: Record<string, any> }>
-  auction: Auction | null
-  pending: Pending | null
-  trades: Array<{
-    id: string
-    from: string
-    to: string
-    give_assets: string[]
-    give_money: number
-    want_assets: string[]
-    want_money: number
-    status: string
-  }>
-  transactions: Array<Record<string, any>>
-  started_at: string
-  finished_at: string
-  viewer_id: string | null
-  victory_mode: 'last_standing' | 'turn_limit'
-  turn_limit: number
-  extra_turn: boolean
-  market: Market | null
-  ranking: RankingRow[]
+  playoff_bracket: any
+  gamedata?: GameData
+  standings?: StandingRow[]
+  final_points?: FinalRow[]
+  trade_offers?: Trade[]
+  transfer_window?: { open: boolean; every: number; next_round: number; round: number }
+  tactics_submissions?: Record<string, any>
+  tactics_submitted?: string[]
+  tactics_concealed?: boolean
+  data_overrides?: Record<string, any>
+  you?: string
 }
 
-export interface GameConfig {
-  starting_money: number
-  salary: number
-  batsmen: Record<string, any>
-  bowlers: Record<string, any>
-  wicket_keepers: Record<string, any>
-  fielders: Record<string, any>
-  stadiums: Record<string, any>
-  achievements: Record<string, string>
-  max_level: number
-  famous_batsmen: Record<string, {
-    name: string
-    country: string
-    avatar: string
-    jersey_color: string
-    jersey_number: number
-  }>
-  custom_defaults: Selection
-  custom_skin_options: string[]
-  custom_hair_options: string[]
-  custom_face_options: string[]
-  custom_countries: string[]
-  batsman_starting_wickets: number
-  max_batsmen: number
-  max_batsman_level: number
-  batsman_upgrade_costs: Record<string, number>
-  six_runs_per_level: number
-  no_ball_runs_per_turn: number
-  recruitment_cost: number
-  victory_modes: string[]
-  default_turn_limit: number
-  gift_min_coins: number
-  gift_max_coins: number
-  gift_reserve_coins: number
-  gifts_per_round: number
-}
-
-export interface LeaderboardRow {
-  player_key: string
+export interface LobbyMember {
+  id: string
   name: string
   avatar: string
   color: string
-  matches_played: number
-  wins: number
-  runs: number
-  best_runs: number
-  coins: number
-  wickets_taken: number
-  wickets_lost: number
-  properties: number
-  upgrades: number
-  gifts_sent: number
-  gifts_received: number
-  last_finished_at: string
+  is_bot: boolean
+  difficulty: string
+  is_host: boolean
+  ready: boolean
+}
+
+export interface LobbyState {
+  room_id: string
+  code: string
+  phase: 'lobby'
+  started: false
+  members: LobbyMember[]
+  settings: Record<string, any>
+  host_id: string
+  you?: string
+  gamedata: GameData
+}
+
+export interface SavedRoom {
+  code: string
+  room_id: string
+  host_id: string
+  created_at: number
+  updated_at: number
+  phase: string
+  round: number
+  mode: string
+  finished: boolean
+  winner_id: string | null
+  winner_name?: string
+  franchises: string[]
+  matches: number
 }
 
 export interface Session {
@@ -274,8 +247,25 @@ export interface Session {
   color: string
 }
 
-export const activeBatsman = (player: Player | undefined | null): Batsman | null => {
-  if (!player) return null
-  return player.batsmen.find(b => b.id === player.active_batsman_id && b.usable)
-    || player.batsmen.find(b => b.usable) || null
+export interface Toast {
+  id: number
+  title: string
+  text: string
+  tone: 'gold' | 'green' | 'danger' | 'info'
+  icon: string
 }
+
+export interface GameEvent {
+  type: string
+  payload?: any
+  round?: number
+  [key: string]: any
+}
+
+export const playerById = (state: GameState | null, id: string | null | undefined): PlayerData | undefined => {
+  if (!state || !id) return undefined
+  return (state.gamedata?.players || state.players || []).find(p => p.id === id)
+}
+
+export const me = (state: GameState | null): Franchise | undefined =>
+  state?.you ? state.franchises[state.you] : undefined

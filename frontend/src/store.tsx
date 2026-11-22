@@ -1,41 +1,47 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
-import { api } from './api'
-import type { GameConfig, GameEvent, GameState, Session, Space } from './types'
+import { api, type CreateRoomBody } from './api'
 import { GameSocket } from './net/socket'
-import { sound } from './sound'
+import type { GameData, GameEvent, GameState, SavedRoom, Session, Toast } from './types'
 
-export type View = 'landing' | 'lobby' | 'game' | 'squad' | 'profile' | 'results' | 'howto' | 'leaderboard'
-
-export interface Toast {
-  id: number
-  title: string
-  text: string
-  tone: 'gold' | 'green' | 'danger' | 'info'
-  icon: string
-}
+export type View = 'landing' | 'lobby' | 'draft' | 'board' | 'squad' | 'auction'
+  | 'markets' | 'match' | 'tournament' | 'ledger' | 'admin' | 'results' | 'howto'
 
 interface AppState {
   session: Session | null
+  sessions: Session[]
   view: View
   state: GameState | null
-  board: Space[]
-  config: GameConfig | null
+  gamedata: GameData | null
+  saved: SavedRoom[]
   connected: boolean
+  busy: boolean
   error: string | null
   toasts: Toast[]
-  events: GameEvent[]
+  events: any[]
 }
 
 type Action =
   | { type: 'SESSION'; session: Session | null }
   | { type: 'VIEW'; view: View }
   | { type: 'STATE'; state: GameState | null }
-  | { type: 'BOARD'; board: Space[] }
-  | { type: 'CONFIG'; config: GameConfig }
+  | { type: 'GAMEDATA'; data: GameData }
+  | { type: 'SAVED'; rows: SavedRoom[] }
   | { type: 'CONNECTED'; connected: boolean }
+  | { type: 'BUSY'; busy: boolean }
   | { type: 'ERROR'; error: string | null }
-  | { type: 'EVENTS'; events: GameEvent[] }
+  | { type: 'EVENTS'; events: any[] }
   | { type: 'DISMISS'; id: number }
+
+const SESSION_KEY = 'fg-session'
+const SESSIONS_KEY = 'fg-sessions'
+
+function readSessions(): Session[] {
+  try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]') } catch { return [] }
+}
+
+function writeSessions(sessions: Session[]) {
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, 12))) } catch { /* ignore */ }
+}
 
 const urlSession: Session | null = (() => {
   try {
@@ -47,22 +53,26 @@ const urlSession: Session | null = (() => {
       code: code.toUpperCase(), playerId: token,
       name: p.get('name') || 'Manager',
       avatar: p.get('avatar') || '🏏',
-      color: p.get('color') || '#22c55e',
+      color: p.get('color') || '#c8a24b',
     }
-    localStorage.setItem('cm-session', JSON.stringify(session))
+    const all = readSessions().filter(s => s.code !== session.code)
+    writeSessions([session, ...all])
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
     return session
   } catch { return null }
 })()
 
 const initial: AppState = {
   session: urlSession || (() => {
-    try { return JSON.parse(localStorage.getItem('cm-session') || 'null') } catch { return null }
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') } catch { return null }
   })(),
-  view: urlSession ? 'game' : 'landing',
+  sessions: readSessions(),
+  view: urlSession ? 'board' : 'landing',
   state: null,
-  board: [],
-  config: null,
+  gamedata: null,
+  saved: [],
   connected: false,
+  busy: false,
   error: null,
   toasts: [],
   events: [],
@@ -70,68 +80,67 @@ const initial: AppState = {
 
 let toastId = 1
 
-function toastFor(event: GameEvent): Toast | null {
+function toastFor(event: any): Toast | null {
   const p = event.payload || {}
   const t = (title: string, text: string, tone: Toast['tone'], icon: string): Toast =>
     ({ id: toastId++, title, text, tone, icon })
   switch (event.type) {
-    case 'wicket': return t('WICKET!', `${p.name ?? 'Batsman'} loses a wicket`, 'danger', '🏏')
-    case 'batsman_retired': return t('BATSMAN RETIRED', `${p.name ?? 'Batsman'} is out of wickets`, 'danger', '❌')
-    case 'batsman_auto_switched': return t('NEW BATSMAN', `${p.name ?? 'Batsman'} takes the crease`, 'info', '🔁')
-    case 'batsman_switched': return t('BATSMAN SWITCHED', `${p.name ?? 'Batsman'} is now active`, 'info', '🔁')
-    case 'six': return t('SIX!', `+${p.runs ?? 0} runs at level ${p.level ?? 1}`, 'gold', '🚀')
-    case 'no_ball': return t('NO BALL!', `${p.text ?? `+${p.bonus ?? 0} bonus runs`} · extra turn`, 'gold', '🚫')
-    case 'scoring': return t(p.label ?? 'RUNS', `+${p.runs ?? 0} runs`, 'gold', '🏏')
-    case 'milestone': return t('MILESTONE', `${p.threshold} runs reached! +${p.reward} coins`, 'gold', '⭐')
-    case 'purchase': case 'auction_won':
-      return t(p.type === 'purchase' ? 'PROPERTY SIGNED' : 'AUCTION WON',
-        `${p.asset?.name ?? 'Property'} · ${p.price ?? 0} coins`, 'green', '💳')
-    case 'fee': return t('FEES PAID', `${p.amount ?? 0} coins at ${p.name ?? 'property'}`, 'info', '💰')
-    case 'keeper_penalty': return t('WICKETKEEPER', `${p.runs_lost ?? 0} runs deducted`, 'danger', '🧤')
-    case 'wicket_protected': return t('PROTECTED!', p.text ?? 'No-ball protection absorbed the wicket', 'green', '🛡️')
-    case 'bowler_attack': return t('BOWLER ATTACK', `${p.name ?? 'Bowler'} strikes — fee paid`, 'danger', '🎯')
-    case 'debt_incurred': return t('DEBT!', `${p.amount ?? 0} coins owed — sell or downgrade to recover`, 'danger', '⚠️')
-    case 'debt_paid': return t('DEBT CLEARED', `${p.amount ?? 0} coins settled`, 'green', '✅')
-    case 'bankrupt': return t('BANKRUPT', 'A manager could not settle their debt', 'danger', '💀')
-    case 'batsman_recruited': return t('SIGNED!', `${p.batsman?.name ?? 'New batsman'} joined the squad`, 'green', '🏏')
-    case 'batsman_upgraded': return t('BATSMAN UPGRADED', `Level ${p.level} · six now ${p.six_runs_after} runs`, 'gold', '⬆️')
-    case 'coins_gifted': return t('COINS SENT', `${p.amount} coins → ${p.to_name ?? 'manager'}`, 'green', '💸')
-    case 'upgrade': return t('PROPERTY UPGRADED', `Now level ${p.level}`, 'green', '⬆️')
-    case 'downgrade': return t('PROPERTY DOWNGRADED', `+${p.refund ?? 0} emergency coins`, 'info', '⬇️')
-    case 'market_offer': return t('RECRUITMENT MARKET', `${p.options?.length ?? 0} batsmen available`, 'info', '🛒')
-    case 'recruit_required': return t('RECRUIT A BATSMAN', 'No usable batsman — sign one before rolling', 'danger', '🛒')
-    case 'eliminated': return t('ELIMINATED', 'A manager has left the tournament', 'danger', '💀')
-    case 'victory': return t('MATCH WON', 'The tournament is complete!', 'gold', '🏆')
-    case 'event_card': return t(p.card?.name ?? 'EVENT', p.card?.text ?? '', p.card?.kind === 'bad' ? 'danger' : 'gold', '🎴')
-    case 'challenge': return t(p.challenge?.name ?? 'CHALLENGE', p.success ? 'Challenge completed!' : 'Challenge failed', p.success ? 'green' : 'danger', '🎯')
-    case 'achievement': return t('ACHIEVEMENT', p.text ?? '', 'gold', '🏅')
-    case 'trade_completed': return t('TRADE DONE', 'Assets exchanged', 'green', '🤝')
-    case 'free_hit': return t('FREE HIT', 'Next attack is nullified', 'info', '🛡️')
-    case 'wicket_blocked': return t('SAVED!', p.text ?? 'Wicket blocked', 'green', '🛡️')
-    case 'injury': return t('INJURY', `${p.name ?? 'Batsman'} is out for ${p.rounds ?? 2} rounds`, 'danger', '🩹')
+    case 'roll': return t('DICE ROLLED', `${(p.dice || []).join(' + ')} → tile ${p.to}`, 'info', '🎲')
+    case 'purchase': return t('ASSET SIGNED', p.payload?.price ? `${p.payload.price} FC` : 'Purchase complete', 'green', '🏟️')
+    case 'event': return t('SPECIAL TILE', String(p.type || p.name || 'Event resolved'), 'gold', '✨')
+    case 'tile_event': return t('EVENT RESOLVED', String(p.result?.type || p.event || 'Board effect applied'), 'gold', '✨')
+    case 'auction_won': return t('AUCTION WON', `${p.player_name || p.player_id} · ${p.price} FC`, 'gold', '🔨')
+    case 'auction_unsold': return t('LOT UNSOLD', 'No qualifying bid', 'info', '🔨')
+    case 'match': return t('MATCH COMPLETE', p.winner_name ? `${p.winner_name} win` : 'Result recorded', 'gold', '🏏')
+    case 'trade_offered': return t('TRADE RECEIVED', 'A two-sided offer awaits confirmation', 'info', '🤝')
+    case 'trade_completed': return t('TRADE COMPLETE', 'Contracts and FC exchanged', 'green', '🤝')
+    case 'training': return t('TRAINING DONE', `${p.attr} improved to ${p.after}`, 'green', '🏋️')
+    case 'champion': return t('CHAMPION CROWNED', String(p.winner_name || 'Season complete'), 'gold', '🏆')
     default: return null
   }
 }
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'SESSION':
-      if (action.session) localStorage.setItem('cm-session', JSON.stringify(action.session))
-      else localStorage.removeItem('cm-session')
-      return { ...state, session: action.session }
+    case 'SESSION': {
+      if (action.session) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(action.session))
+        const all = [action.session, ...state.sessions.filter(s => s.code !== action.session!.code)]
+        writeSessions(all)
+        return { ...state, session: action.session, sessions: all }
+      }
+      localStorage.removeItem(SESSION_KEY)
+      return { ...state, session: null }
+    }
     case 'VIEW': return { ...state, view: action.view, error: null }
     case 'STATE': {
-      const enterGame = !!action.state?.started && (state.view === 'lobby' || state.view === 'landing')
-      const enterLobby = !!action.state && !action.state.started && state.view === 'game'
-      return { ...state, state: action.state, view: enterGame ? 'game' : enterLobby ? 'lobby' : state.view }
+      const s = action.state as any
+      if (!s) return { ...state, state: null }
+      let view = state.view
+      if (s.started && ['landing', 'lobby'].includes(view)) {
+        view = s.phase === 'draft' ? 'draft' : 'board'
+      } else if (s.started && view === 'draft' && s.phase !== 'draft') {
+        view = s.phase === 'over' ? 'results' : 'board'
+      } else if (!s.started && ['draft', 'board', 'squad', 'auction', 'markets', 'match',
+        'tournament', 'ledger', 'admin', 'results'].includes(view)) {
+        view = 'lobby'
+      }
+      return {
+        ...state, state: s, view,
+        gamedata: s.gamedata || state.gamedata,
+      }
     }
-    case 'BOARD': return { ...state, board: action.board }
-    case 'CONFIG': return { ...state, config: action.config }
+    case 'GAMEDATA': return { ...state, gamedata: action.data }
+    case 'SAVED': return { ...state, saved: action.rows }
     case 'CONNECTED': return { ...state, connected: action.connected }
-    case 'ERROR': return { ...state, error: action.error }
+    case 'BUSY': return { ...state, busy: action.busy }
+    case 'ERROR': return { ...state, error: action.error, busy: false }
     case 'EVENTS': {
       const toasts = action.events.map(toastFor).filter((x): x is Toast => x !== null).slice(0, 4)
-      return { ...state, events: [...state.events, ...action.events].slice(-200), toasts: [...state.toasts, ...toasts].slice(-5) }
+      return {
+        ...state, events: [...state.events, ...action.events].slice(-200),
+        toasts: [...state.toasts, ...toasts].slice(-5),
+      }
     }
     case 'DISMISS': return { ...state, toasts: state.toasts.filter(t => t.id !== action.id) }
     default: return state
@@ -144,6 +153,12 @@ interface Ctx {
   send: (action: string, payload?: Record<string, unknown>) => void
   connect: (session: Session) => void
   disconnect: () => void
+  setSession: (session: Session | null) => void
+  create: (body: CreateRoomBody) => Promise<void>
+  join: (code: string, name: string, avatar: string, color: string) => Promise<void>
+  quick: (body: CreateRoomBody) => Promise<void>
+  continueRoom: (row: SavedRoom) => Promise<void>
+  refreshSaved: () => Promise<void>
 }
 
 const StoreContext = createContext<Ctx | null>(null)
@@ -151,9 +166,16 @@ const StoreContext = createContext<Ctx | null>(null)
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [app, dispatch] = useReducer(reducer, initial)
   const socketRef = useRef<GameSocket | null>(null)
+  const sessionRef = useRef<Session | null>(app.session)
+  sessionRef.current = app.session
+
+  const refreshSaved = async () => {
+    try { dispatch({ type: 'SAVED', rows: await api.saved() }) } catch { /* offline */ }
+  }
 
   useEffect(() => {
-    api.config().then(config => dispatch({ type: 'CONFIG', config })).catch(() => { /* defaults still work */ })
+    api.gamedata().then(data => dispatch({ type: 'GAMEDATA', data })).catch(() => {})
+    refreshSaved()
   }, [])
 
   const connect = (session: Session) => {
@@ -163,25 +185,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       message => {
         if (message.type === 'update') {
           dispatch({ type: 'STATE', state: message.state })
-          if (message.board) dispatch({ type: 'BOARD', board: message.board })
           const events: GameEvent[] = message.events || []
-          if (events.length) {
-            dispatch({ type: 'EVENTS', events })
-            for (const e of events) {
-              const p = e.payload || {}
-              if (e.type === 'dice') sound.play('dice')
-              else if (e.type === 'move') sound.play('move')
-              else if (e.type === 'wicket' || e.type === 'bowler_attack') sound.play('wicket')
-              else if (e.type === 'batsman_retired' || e.type === 'eliminated' || e.type === 'bankrupt') sound.play('out')
-              else if (e.type === 'six' || e.type === 'no_ball') sound.play('sixer')
-              else if (e.type === 'scoring') sound.play(p.runs >= 4 ? 'boundary' : 'runs')
-              else if (e.type === 'runs') sound.play('runs')
-              else if (e.type === 'purchase' || e.type === 'auction_won' || e.type === 'batsman_recruited' || e.type === 'batsman_upgraded' || e.type === 'coins_gifted') sound.play('buy')
-              else if (e.type === 'fee' || e.type === 'debt_paid' || e.type === 'salary' || e.type === 'milestone') sound.play('money')
-              else if (e.type === 'debt_incurred' || e.type === 'recruit_required') sound.play('wicket')
-              else if (e.type === 'event_card' || e.type === 'challenge' || e.type === 'wicket_protected') sound.play('card')
-              else if (e.type === 'victory') sound.play('victory')
-            }
+          if (events.length) dispatch({ type: 'EVENTS', events })
+          if (message.you && sessionRef.current && sessionRef.current.playerId !== message.you) {
+            // Server is authoritative about identity; keep the session in sync.
           }
         } else if (message.type === 'error') {
           dispatch({ type: 'ERROR', error: message.message })
@@ -191,11 +198,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     )
     socketRef.current = socket
     socket.connect()
+    return socket
   }
 
   const disconnect = () => {
     socketRef.current?.close()
     socketRef.current = null
+    dispatch({ type: 'CONNECTED', connected: false })
   }
 
   const sessionCode = app.session?.code
@@ -204,19 +213,92 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!sessionCode || !sessionPlayer) return
     connect({ code: sessionCode, playerId: sessionPlayer,
               name: app.session!.name, avatar: app.session!.avatar, color: app.session!.color })
-    return () => {
-      socketRef.current?.close()
-      socketRef.current = null
-    }
+    return () => { socketRef.current?.close(); socketRef.current = null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCode, sessionPlayer])
 
-  const send = (action: string, payload: Record<string, unknown> = {}) => {
-    if (!socketRef.current?.send(action, payload)) {
-      dispatch({ type: 'ERROR', error: 'Reconnecting to server…' })
+  const setSession = (session: Session | null) => {
+    dispatch({ type: 'SESSION', session })
+    if (session) {
+      dispatch({ type: 'VIEW', view: 'lobby' })
+      connect(session)
+    } else {
+      disconnect()
+      dispatch({ type: 'VIEW', view: 'landing' })
     }
   }
 
-  const value = useMemo(() => ({ app, dispatch, send, connect, disconnect }), [app])
+  const enterRoom = async (result: { code: string; player_id: string; state: any }) => {
+    const session: Session = {
+      code: result.code, playerId: result.player_id,
+      name: app.session?.name || 'Manager',
+      avatar: app.session?.avatar || '🏏',
+      color: app.session?.color || '#c8a24b',
+    }
+    dispatch({ type: 'STATE', state: result.state })
+    setSession(session)
+    if (result.state?.started) {
+      dispatch({ type: 'VIEW', view: result.state.phase === 'draft' ? 'draft' : 'board' })
+    }
+    await refreshSaved()
+  }
+
+  const create = async (body: CreateRoomBody) => {
+    dispatch({ type: 'BUSY', busy: true })
+    try { await enterRoom(await api.createRoom(body)) }
+    catch (e: any) { dispatch({ type: 'ERROR', error: e.message }) }
+    finally { dispatch({ type: 'BUSY', busy: false }) }
+  }
+
+  const join = async (code: string, name: string, avatar: string, color: string) => {
+    dispatch({ type: 'BUSY', busy: true })
+    try { await enterRoom(await api.joinRoom(code.trim().toUpperCase(), name, avatar, color)) }
+    catch (e: any) { dispatch({ type: 'ERROR', error: e.message }) }
+    finally { dispatch({ type: 'BUSY', busy: false }) }
+  }
+
+  const quick = async (body: CreateRoomBody) => {
+    dispatch({ type: 'BUSY', busy: true })
+    try { await enterRoom(await api.quickMatch(body)) }
+    catch (e: any) { dispatch({ type: 'ERROR', error: e.message }) }
+    finally { dispatch({ type: 'BUSY', busy: false }) }
+  }
+
+  const continueRoom = async (row: SavedRoom) => {
+    dispatch({ type: 'BUSY', busy: true })
+    try {
+      const remote = await api.getRoom(row.code)
+      const known = app.sessions.find(s => s.code === row.code)
+      const token = known?.playerId || remote.host_id || row.host_id
+      const session: Session = {
+        code: row.code, playerId: token,
+        name: known?.name || remote.franchises?.[token]?.name || 'Manager',
+        avatar: known?.avatar || remote.franchises?.[token]?.avatar || '🏏',
+        color: known?.color || remote.franchises?.[token]?.color || '#c8a24b',
+      }
+      dispatch({ type: 'STATE', state: remote })
+      setSession(session)
+      dispatch({ type: 'VIEW', view: remote.started ? (remote.phase === 'draft' ? 'draft' : 'board') : 'lobby' })
+    } catch (e: any) {
+      dispatch({ type: 'ERROR', error: e.message })
+    } finally { dispatch({ type: 'BUSY', busy: false }) }
+  }
+
+  const send = (action: string, payload: Record<string, unknown> = {}) => {
+    let socket = socketRef.current
+    if (!socket && app.session) socket = connect(app.session)
+    if (!socket) {
+      dispatch({ type: 'ERROR', error: 'Join a room before sending actions.' })
+      return
+    }
+    socket.send(action, payload)
+  }
+
+  const value = useMemo(() => ({
+    app, dispatch, send, connect, disconnect, setSession,
+    create, join, quick, continueRoom, refreshSaved,
+  }), [app])
+
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
 

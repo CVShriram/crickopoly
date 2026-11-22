@@ -7,6 +7,7 @@ export class GameSocket {
   private timer: number | null = null
   private attempts = 0
   private closedByUser = false
+  private queued: Array<Record<string, unknown>> = []
 
   constructor(
     private code: string,
@@ -17,12 +18,14 @@ export class GameSocket {
 
   connect() {
     this.closedByUser = false
-    const url = `${WS_URL}/ws?code=${encodeURIComponent(this.code)}&token=${encodeURIComponent(this.token)}`
+    const url = `${WS_URL}/api/fg/ws?code=${encodeURIComponent(this.code)}&token=${encodeURIComponent(this.token)}`
     const ws = new WebSocket(url)
     this.ws = ws
     ws.onopen = () => {
       this.attempts = 0
       this.onStatus(true)
+      const queued = this.queued.splice(0)
+      for (const message of queued) ws.send(JSON.stringify(message))
     }
     ws.onmessage = event => {
       try { this.onMessage(JSON.parse(event.data)) } catch { /* ignore malformed */ }
@@ -45,10 +48,12 @@ export class GameSocket {
   }
 
   send(action: string, payload: Record<string, unknown> = {}) {
+    const message = { action, ...payload }
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ action, ...payload }))
+      this.ws.send(JSON.stringify(message))
       return true
     }
+    this.queued.push(message)
     return false
   }
 

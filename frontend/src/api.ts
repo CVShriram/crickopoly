@@ -1,10 +1,9 @@
-// Empty by default: in production the FastAPI process also serves the built
-// React app, so API and WebSocket calls stay on the same origin. Vite dev can
-// still point at a separate backend by setting VITE_API_URL before `npm run dev`.
+// Production serves the built React app from the same FastAPI process, so all
+// API and WebSocket calls stay on the current origin. Vite dev can override it.
 export const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-const sameOriginWs = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
+const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
 export const WS_URL = (import.meta.env.VITE_WS_URL
-  || (API_URL ? API_URL.replace(/^http/, 'ws') : sameOriginWs)).replace(/\/$/, '')
+  || (API_URL ? API_URL.replace(/^http/, 'ws') : `${wsProtocol}://${window.location.host}`)).replace(/\/$/, '')
 
 async function request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -12,39 +11,45 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
   const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.detail || 'Request failed')
+  if (!response.ok) throw new Error(data.detail || data.message || 'Request failed')
   return data as T
 }
 
+export interface CreateRoomBody {
+  name: string
+  avatar: string
+  color: string
+  settings?: Record<string, unknown>
+}
+
+const FG = '/api/fg'
+
 export const api = {
-  board: () => request<any[]>('/api/board'),
-  config: () => request<any>('/api/config'),
-  history: () => request<any[]>('/api/history'),
-  leaderboard: (limit = 50) => request<any[]>(`/api/leaderboard?limit=${limit}`),
-  createRoom: (name: string, avatar: string, color: string) =>
-    request<any>('/api/rooms', {
-      method: 'POST', body: JSON.stringify({ name, avatar, color }),
+  gamedata: () => request<import('./types').GameData>(`${FG}/gamedata`),
+  saved: () => request<import('./types').SavedRoom[]>(`${FG}/saved`),
+  createRoom: (body: CreateRoomBody) =>
+    request<{ room_id: string; code: string; player_id: string; state: any }>(`${FG}/rooms`, {
+      method: 'POST', body: JSON.stringify(body),
     }),
   joinRoom: (code: string, name: string, avatar: string, color: string) =>
-    request<any>('/api/rooms/join', {
+    request<{ room_id: string; code: string; player_id: string; state: any }>(`${FG}/rooms/join`, {
       method: 'POST', body: JSON.stringify({ code, name, avatar, color }),
     }),
-  setReady: (code: string, playerId: string, ready: boolean) =>
-    request<any>(`/api/rooms/${code}/ready`, {
-      method: 'POST', body: JSON.stringify({ player_id: playerId, ready }),
-    }),
-  startGame: (code: string, playerId: string) =>
-    request<any>(`/api/rooms/${code}/start`, {
+  getRoom: (code: string) => request<any>(`${FG}/rooms/${encodeURIComponent(code)}`),
+  startRoom: (code: string, playerId: string) =>
+    request<any>(`${FG}/rooms/${encodeURIComponent(code)}/start`, {
       method: 'POST', body: JSON.stringify({ player_id: playerId }),
     }),
-  addBots: (code: string, count = 1, strategy = 'smart') =>
-    request<any>(`/api/rooms/${code}/bots`, {
-      method: 'POST', body: JSON.stringify({ count, strategy }),
+  addBots: (code: string, playerId: string, count: number, difficulty: string) =>
+    request<any>(`${FG}/rooms/${encodeURIComponent(code)}/bots`, {
+      method: 'POST', body: JSON.stringify({ player_id: playerId, count, difficulty }),
     }),
-  quickMatch: (name: string, bots = 2, strategy = 'smart',
-    victoryMode = 'last_standing', turnLimit = 20) =>
-    request<{ code: string; player_id: string; url: string }>('/api/test/match', {
-      method: 'POST',
-      body: JSON.stringify({ name, bots, strategy, victory_mode: victoryMode, turn_limit: turnLimit }),
+  updateSettings: (code: string, playerId: string, settings: Record<string, unknown>) =>
+    request<any>(`${FG}/rooms/${encodeURIComponent(code)}/settings`, {
+      method: 'POST', body: JSON.stringify({ player_id: playerId, settings }),
+    }),
+  quickMatch: (body: CreateRoomBody) =>
+    request<{ room_id: string; code: string; player_id: string; state: any }>(`${FG}/quick`, {
+      method: 'POST', body: JSON.stringify(body),
     }),
 }

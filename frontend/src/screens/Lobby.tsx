@@ -1,293 +1,143 @@
-import { useEffect, useState } from 'react'
-import { api } from '../api'
+import React, { useState } from 'react'
 import { useApp } from '../store'
-import { sound } from '../sound'
-import { BatsmanAvatar } from '../components/BatsmanAvatar'
-import type { Selection } from '../types'
-
-const JERSEY_COLORS = ['#1e40af', '#22c55e', '#dc2626', '#facc15', '#7c3aed', '#065f46', '#0f172a']
-const AVATARS = ['🏏', '🧤', '🎯', '🦁', '🦅', '⚡', '🔥', '🛡️']
+import type { LobbyState } from '../types'
+import { Avatar, Badge, Button, Empty, Panel } from '../components/UI'
 
 export function Lobby() {
-  const { app, dispatch, send, disconnect } = useApp()
-  const state = app.state
-  const config = app.config
-  const me = state?.players.find(p => p.id === app.session?.playerId)
-  const isHost = !!me?.is_host
+  const { app, send, dispatch } = useApp()
+  const lobby = app.state as unknown as LobbyState | null
+  const [count, setCount] = useState(2)
+  const [difficulty, setDifficulty] = useState('medium')
   const [copied, setCopied] = useState(false)
-  const [tab, setTab] = useState<'famous' | 'custom'>('famous')
-  const [custom, setCustom] = useState<Selection>(() => ({ ...(config?.custom_defaults || {}) }))
-  const [turnLimit, setTurnLimit] = useState(config?.default_turn_limit || 20)
-  const [busy, setBusy] = useState(false)
+  if (!lobby) return <Empty title="Loading room…" />
 
-  useEffect(() => {
-    if (config?.custom_defaults) setCustom({ ...config.custom_defaults })
-    if (config?.default_turn_limit) setTurnLimit(config.default_turn_limit)
-  }, [config])
+  const members = lobby.members || []
+  const isHost = lobby.host_id === app.session?.playerId
+  const meMember = members.find(m => m.id === app.session?.playerId)
+  const canStart = members.length >= 2 && members.every(m => m.is_bot || m.ready)
 
-  const copy = async () => {
-    if (!state) return
-    try { await navigator.clipboard.writeText(state.code) } catch { /* clipboard optional */ }
-    setCopied(true); sound.play('click')
-    window.setTimeout(() => setCopied(false), 1600)
-  }
-
-  const leave = () => {
-    disconnect()
-    dispatch({ type: 'SESSION', session: null })
-    dispatch({ type: 'STATE', state: null })
-    dispatch({ type: 'VIEW', view: 'landing' })
-  }
-
-  const inviteBot = async () => {
-    if (!state) return
-    setBusy(true)
-    try {
-      const next = await api.addBots(state.code, 1, 'smart')
-      dispatch({ type: 'STATE', state: next })
-      sound.play('buy')
-    } catch { /* host may not be able to add bots */ }
-    finally { setBusy(false) }
-  }
-
-  if (!state || !me) return <div className="screen-bg loading-screen">Connecting to room…</div>
-
-  const famous = config?.famous_batsmen || {}
-  const claimed = new Set(state.players
-    .filter(p => p.id !== me.id && p.selection?.identity_id)
-    .map(p => p.selection.identity_id as string))
-  const humans = state.players.filter(p => !p.is_bot)
-  const humansSelected = humans.every(p => p.selection && (p.selection.identity_id || p.selection.is_custom))
-  const enoughPlayers = state.players.length >= 2
-  const meSelected = !!(me.selection && (me.selection.identity_id || me.selection.is_custom))
-
-  const selectFamous = (key: string) => {
-    sound.play('click')
-    send('select_batsman', { identity_id: key })
-  }
-
-  const submitCustom = () => {
-    if (!String(custom.name || '').trim()) {
-      dispatch({ type: 'ERROR', error: 'Give your batsman a name first.' })
-      return
-    }
-    sound.play('buy')
-    send('create_batsman', { custom: { ...custom, name: String(custom.name).trim() } })
-  }
-
-  const applyVictory = () => {
-    sound.play('click')
-    send('victory_mode', { mode: state.victory_mode, turn_limit: turnLimit })
+  const patch = (settings: Record<string, unknown>) => send('settings', { settings })
+  const share = () => {
+    const url = `${window.location.origin}${window.location.pathname}?code=${lobby.code}&token=${app.session?.playerId}&name=${encodeURIComponent(meMember?.name || 'Manager')}&avatar=${encodeURIComponent(meMember?.avatar || '🏏')}&color=${encodeURIComponent(meMember?.color || '#c8a24b')}`
+    navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true); window.setTimeout(() => setCopied(false), 1800)
+    }).catch(() => dispatch({ type: 'ERROR', error: url }))
   }
 
   return (
-    <div className="lobby screen-bg draft-screen">
-      <header className="screen-topbar">
-        <div className="brand-mark small"><span className="brand-ball">🏏</span> CRICKET <b>MONOPOLY</b></div>
-        <button className="btn ghost small" onClick={leave}>← Leave room</button>
-      </header>
+    <div className="page lobby-page">
+      <div className="page-head">
+        <div><small>PRIVATE ROOM</small><h1>Franchise Lobby</h1><p>Invite managers, add AI rivals and tune the season before kickoff.</p></div>
+        <Button variant="gold" onClick={share}>{copied ? '✓ Link copied' : '🔗 Copy invite link'}</Button>
+      </div>
 
-      <div className="draft-layout">
-        <section className="draft-side">
-          <div className="lobby-card">
-            <span className="eyebrow">PLAYER LOBBY</span>
-            <h1>Gather your rivals</h1>
-            <p className="muted">Share this code with friends, then choose your opening batsman.</p>
-            <button className="room-code" onClick={copy}>
-              <span>{state.code}</span><small>{copied ? 'Copied!' : 'Click to copy'}</small>
-            </button>
-            <div className={`connection-pill ${app.connected ? 'online' : ''}`}>
-              {app.connected ? '● Connected — state is live' : '○ Reconnecting…'}
-            </div>
+      <div className="lobby-grid">
+        <Panel title="Room" subtitle={lobby.code} icon="🏟️" action={<Badge tone="gold">{members.length}/6 managers</Badge>}>
+          <div className="code-display">
+            <span>{lobby.code}</span>
+            <small>Share this code so friends can join from the landing screen.</small>
           </div>
-
-          <div className="lobby-card players-card">
-            <div className="panel-heading">
-              <span className="eyebrow">MANAGERS</span>
-              <h3>{state.players.length} / 4 ready</h3>
-            </div>
-            <div className="lobby-players">
-              {state.players.map(player => {
-                const identity = player.selection?.identity_id ? famous[player.selection.identity_id] : null
-                return (
-                  <div key={player.id} className={`lobby-player ${player.id === me.id ? 'me' : ''}`}
-                    style={{ ['--accent' as any]: player.color }}>
-                    <div className="lobby-avatar" style={{ background: player.color }}>{player.avatar}</div>
-                    <div className="lobby-player-info">
-                      <strong>{player.name} {player.id === me.id && <span className="you-tag">YOU</span>}</strong>
-                      <span className="muted">
-                        {player.is_bot ? 'AI manager' : identity?.name || (player.selection?.name ?? 'Choosing batsman…')}
-                      </span>
-                    </div>
-                    {player.is_bot ? <span className="ready-badge bot"><span className="bot-tag">BOT</span></span>
-                      : <span className={`ready-badge ${player.selection ? 'ready' : ''}`}>
-                          {player.selection ? '✓ Picked' : 'Pick a batsman'}
-                        </span>}
-                  </div>
-                )
-              })}
-              {Array.from({ length: Math.max(0, 4 - state.players.length) }).map((_, i) => (
-                <div key={i} className="lobby-player empty"><span>Waiting for manager…</span></div>
-              ))}
-            </div>
+          <div className="member-list">
+            {members.map((m, idx) => (
+              <div key={m.id} className="member-row">
+                <Avatar franchise={m as any} />
+                <div className="member-name"><strong>{m.name}</strong>
+                  <small>{m.is_bot ? `${m.difficulty} AI manager` : idx === 0 ? 'Room host' : 'Human manager'}</small></div>
+                {m.is_host && <Badge tone="gold">HOST</Badge>}
+                {m.is_bot ? <Badge tone="blue">BOT</Badge>
+                  : <Badge tone={m.ready ? 'green' : 'danger'}>{m.ready ? 'READY' : 'NOT READY'}</Badge>}
+              </div>
+            ))}
           </div>
+          {!meMember?.is_bot && (
+            <Button variant={meMember?.ready ? 'subtle' : 'primary'} block
+              onClick={() => send('ready', { ready: !meMember?.ready })}>
+              {meMember?.ready ? 'Mark not ready' : 'I am ready'}
+            </Button>
+          )}
+        </Panel>
 
+        <Panel title="Season settings" subtitle={isHost ? 'Host controls' : 'Only the host can edit these'} icon="⚙️">
+          <label className="field"><span>Game mode</span>
+            <select disabled={!isHost} value={lobby.settings?.mode || 'standard'}
+              onChange={e => patch({ mode: e.target.value })}>
+              <option value="standard">Standard Season — 100-point final table</option>
+              <option value="classic">Classic Survival — last franchise standing</option>
+            </select>
+          </label>
+          <div className="two-col">
+            <label className="field"><span>Franchises</span>
+              <select disabled={!isHost} value={lobby.settings?.max_players || 6}
+                onChange={e => patch({ max_players: Number(e.target.value) })}>
+                {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <label className="field"><span>League rounds</span>
+              <select disabled={!isHost} value={lobby.settings?.season_rounds || 8}
+                onChange={e => patch({ season_rounds: Number(e.target.value) })}>
+                {[2, 4, 6, 8, 10, 12, 16].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="two-col">
+            <label className="field"><span>Starting balance</span>
+              <select disabled={!isHost} value={lobby.settings?.starting_credits || 1500}
+                onChange={e => patch({ starting_credits: Number(e.target.value) })}>
+                {[1000, 1500, 2000, 2500].map(n => <option key={n} value={n}>{n} FC</option>)}
+              </select>
+            </label>
+            <label className="field"><span>Opening pitch</span>
+              <select disabled={!isHost} value={lobby.settings?.pitch || 'flat'}
+                onChange={e => patch({ pitch: e.target.value })}>
+                {Object.entries(app.gamedata?.pitches || { flat: { name: 'Flat' } }).map(([key, p]) =>
+                  <option key={key} value={key}>{p.name}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="two-col">
+            <label className="field"><span>AI difficulty</span>
+              <select disabled={!isHost} value={lobby.settings?.ai_difficulty || 'medium'}
+                onChange={e => { setDifficulty(e.target.value); patch({ ai_difficulty: e.target.value }) }}>
+                <option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
+              </select>
+            </label>
+            <label className="field"><span>Transfer window</span>
+              <select disabled={!isHost} value={lobby.settings?.transfer_window_every ?? 3}
+                onChange={e => patch({ transfer_window_every: Number(e.target.value) })}>
+                <option value={0}>Always</option><option value={2}>Every 2 rounds</option>
+                <option value={3}>Every 3 rounds</option><option value={4}>Every 4 rounds</option>
+              </select>
+            </label>
+          </div>
+        </Panel>
+
+        <Panel title="AI managers" subtitle="Fill empty seats with automated rivals" icon="🤖">
+          <div className="bot-setup">
+            <label className="field"><span>How many bots?</span>
+              <input type="number" min={1} max={6 - members.length} value={count}
+                onChange={e => setCount(Math.max(1, Math.min(6, Number(e.target.value))))} />
+            </label>
+            <label className="field"><span>Difficulty</span>
+              <select value={difficulty} onChange={e => setDifficulty(e.target.value)}>
+                <option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
+              </select>
+            </label>
+          </div>
+          <Button variant="subtle" block disabled={!isHost || members.length >= 6}
+            onClick={() => send('bots', { count, difficulty })}>＋ Add AI managers</Button>
+          <div className="callout">
+            <strong>How the draft works</strong>
+            <p>Each franchise picks 15 players in snake order. Bronze costs 30 FC, Silver 50 FC and Gold 80 FC during the inaugural draft.</p>
+          </div>
           {isHost && (
-            <div className="lobby-card victory-settings">
-              <div className="panel-heading"><span className="eyebrow">HOST SETTINGS</span><h3>Victory</h3></div>
-              <label className="field compact">
-                <span>Mode</span>
-                <select value={state.victory_mode} onChange={e => {
-                  send('victory_mode', { mode: e.target.value, turn_limit: turnLimit })
-                }}>
-                  <option value="last_standing">Last manager standing</option>
-                  <option value="turn_limit">Turn-limit ranking</option>
-                </select>
-              </label>
-              {state.victory_mode === 'turn_limit' && (
-                <label className="field compact">
-                  <span>Rounds</span>
-                  <div className="inline-field">
-                    <input type="number" min={1} max={200} value={turnLimit}
-                      onChange={e => setTurnLimit(Number(e.target.value) || 1)} />
-                    <button className="btn ghost small" onClick={applyVictory}>Apply</button>
-                  </div>
-                </label>
-              )}
-              <button className="btn ghost small" disabled={busy || state.players.length >= 4} onClick={inviteBot}>
-                {busy ? 'Adding…' : '+ Add smart bot'}
-              </button>
+            <div className="start-block">
+              {!canStart && <small>Add at least one more manager or bot, and ensure everyone is ready.</small>}
+              <Button variant="gold" block disabled={!canStart} onClick={() => send('start', {})}>
+                🏏 Kick off season
+              </Button>
             </div>
           )}
-        </section>
-
-        <section className="draft-main">
-          <div className="draft-header">
-            <div>
-              <span className="eyebrow">OPENER SELECTION</span>
-              <h2>Choose your first batsman</h2>
-              <p className="muted">One pick per manager. Every cricketer starts with 3 wickets and identical stats.</p>
-            </div>
-            {meSelected && <div className="draft-confirmed">✓ Opening batsman locked in</div>}
-          </div>
-
-          <div className="draft-tabs">
-            <button className={tab === 'famous' ? 'active' : ''} onClick={() => { setTab('famous'); sound.play('click') }}>
-              Famous cricketers
-            </button>
-            <button className={tab === 'custom' ? 'active' : ''} onClick={() => { setTab('custom'); sound.play('click') }}>
-              Create your own
-            </button>
-          </div>
-
-          {tab === 'famous' ? (
-            <div className="famous-grid">
-              {Object.entries(famous).map(([key, info]) => {
-                const taken = claimed.has(key)
-                const selected = me.selection?.identity_id === key
-                return (
-                  <button key={key} className={`famous-card ${selected ? 'selected' : ''} ${taken ? 'taken' : ''}`}
-                    disabled={taken} onClick={() => selectFamous(key)}
-                    style={{ ['--jersey' as any]: info.jersey_color }}>
-                    <BatsmanAvatar person={{ ...info, skin: '#f1c27d', hair: 'short', face: 'smile' }} size="small" />
-                    <strong>{info.name}</strong>
-                    <span>{info.country}</span>
-                    <em>#{info.jersey_number}</em>
-                    {taken && <b className="taken-tag">TAKEN</b>}
-                    {selected && <b className="chosen-tag">✓ YOURS</b>}
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="customizer">
-              <div className="customizer-preview">
-                <BatsmanAvatar person={custom} size="large" />
-                <strong>{custom.name || 'Your Batsman'}</strong>
-                <span>{custom.country} · #{custom.jersey_number ?? 18}</span>
-              </div>
-              <div className="customizer-form">
-                <label className="field compact"><span>Name</span>
-                  <input maxLength={24} value={String(custom.name || '')}
-                    onChange={e => setCustom(c => ({ ...c, name: e.target.value }))} placeholder="e.g. The Boundary King" />
-                </label>
-                <label className="field compact"><span>Country / team</span>
-                  <select value={String(custom.country || 'Custom')}
-                    onChange={e => setCustom(c => ({ ...c, country: e.target.value }))}>
-                    {(config?.custom_countries || ['Custom']).map(country =>
-                      <option key={country} value={country}>{country}</option>)}
-                  </select>
-                </label>
-                <div className="field-row">
-                  <label className="field compact"><span>Jersey number</span>
-                    <input type="number" min={0} max={999} value={Number(custom.jersey_number ?? 18)}
-                      onChange={e => setCustom(c => ({ ...c, jersey_number: Number(e.target.value) }))} />
-                  </label>
-                  <label className="field compact"><span>Jersey colour</span>
-                    <input type="color" value={String(custom.jersey_color || '#22c55e')}
-                      onChange={e => setCustom(c => ({ ...c, jersey_color: e.target.value }))} />
-                  </label>
-                </div>
-                <div className="swatch-row">
-                  {JERSEY_COLORS.map(color => (
-                    <button key={color} className={`swatch ${custom.jersey_color === color ? 'selected' : ''}`}
-                      style={{ background: color }} onClick={() => setCustom(c => ({ ...c, jersey_color: color }))} />
-                  ))}
-                </div>
-                <div className="field"><span>Icon</span>
-                  <div className="mini-grid">
-                    {AVATARS.map(a => (
-                      <button key={a} className={custom.avatar === a ? 'selected' : ''}
-                        onClick={() => setCustom(c => ({ ...c, avatar: a }))}>{a}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="field"><span>Skin</span>
-                  <div className="swatch-row">
-                    {(config?.custom_skin_options || ['#fde3c8', '#f1c27d', '#d8a06a', '#a9653c', '#6b3f24']).map(color => (
-                      <button key={color} className={`swatch ${custom.skin === color ? 'selected' : ''}`}
-                        style={{ background: color }} onClick={() => setCustom(c => ({ ...c, skin: color }))} />
-                    ))}
-                  </div>
-                </div>
-                <div className="field-row">
-                  <label className="field compact"><span>Hairstyle</span>
-                    <select value={String(custom.hair || 'short')}
-                      onChange={e => setCustom(c => ({ ...c, hair: e.target.value }))}>
-                      {(config?.custom_hair_options || ['short', 'spiky', 'long', 'curly', 'bald']).map(h =>
-                        <option key={h} value={h}>{h}</option>)}
-                    </select>
-                  </label>
-                  <label className="field compact"><span>Hair colour</span>
-                    <input type="color" value={String(custom.hair_color || '#2d1b0e')}
-                      onChange={e => setCustom(c => ({ ...c, hair_color: e.target.value }))} />
-                  </label>
-                </div>
-                <label className="field compact"><span>Expression</span>
-                  <select value={String(custom.face || 'smile')}
-                    onChange={e => setCustom(c => ({ ...c, face: e.target.value }))}>
-                    {(config?.custom_face_options || ['smile', 'grin', 'focused', 'determined']).map(f =>
-                      <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </label>
-                <button className="btn primary large" onClick={submitCustom}>Use this batsman</button>
-              </div>
-            </div>
-          )}
-
-          <div className="draft-footer">
-            {isHost ? (
-              <button className="btn gold large" disabled={!enoughPlayers || !humansSelected}
-                onClick={() => { sound.play('victory'); send('start') }}>
-                Start match →
-              </button>
-            ) : (
-              <div className="waiting-note">Waiting for the host to start the match…</div>
-            )}
-            {!enoughPlayers && <p className="hint">At least 2 managers are needed.</p>}
-            {!humansSelected && <p className="hint">Each human manager must choose an opening batsman.</p>}
-          </div>
-        </section>
+        </Panel>
       </div>
     </div>
   )

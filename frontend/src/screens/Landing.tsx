@@ -1,150 +1,189 @@
-import { useState } from 'react'
-import { api } from '../api'
+import React, { useState } from 'react'
 import { useApp } from '../store'
-import { sound } from '../sound'
+import { Button, Panel, Badge } from '../components/UI'
+import { money, timeAgo } from '../utils'
 
-const AVATARS = ['🏏', '🦁', '🦅', '🐯', '🦊', '🐺', '🦅', '⚡', '🔥', '🛡️', '🎯', '🏆']
-const COLORS = ['#22c55e', '#38bdf8', '#f59e0b', '#f43f5e', '#a78bfa', '#14b8a6']
+const AVATARS = ['🦁', '🦅', '🐯', '🐋', '🦘', '🦓', '🦉', '🐊']
+const COLORS = ['#c8a24b', '#4fd1c5', '#f56565', '#68d391', '#b794f4', '#f6ad55', '#63b3ed', '#fc8181']
+
+const DEFAULTS = {
+  starting_credits: 1500,
+  max_players: 6,
+  mode: 'standard',
+  season_rounds: 8,
+  ai_difficulty: 'medium',
+  transfer_window_every: 3,
+  pitch: 'flat',
+  victory_mode: 'standard_season',
+}
 
 export function Landing() {
-  const { dispatch } = useApp()
-  const [name, setName] = useState(() => localStorage.getItem('cm-name') || '')
-  const [avatar, setAvatar] = useState('🏏')
-  const [color, setColor] = useState(COLORS[0])
+  const { app, create, join, quick, continueRoom, dispatch, refreshSaved } = useApp()
+  const [tab, setTab] = useState<'new' | 'join' | 'quick'>('new')
+  const [name, setName] = useState(() => localStorage.getItem('fg-name') || 'Manager')
+  const [avatar, setAvatar] = useState(() => localStorage.getItem('fg-avatar') || '🦁')
+  const [color, setColor] = useState(() => localStorage.getItem('fg-color') || '#c8a24b')
   const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [victoryMode, setVictoryMode] = useState('last_standing')
-  const [turnLimit, setTurnLimit] = useState(20)
+  const [settings, setSettings] = useState(DEFAULTS)
 
-  const playBots = async () => {
-    if (!name.trim()) { setError('Enter your manager name first.'); return }
-    setBusy(true); setError('')
-    localStorage.setItem('cm-name', name.trim())
-    try {
-      const result = await api.quickMatch(name.trim(), 2, 'smart', victoryMode, turnLimit)
-      sound.play('victory')
-      dispatch({
-        type: 'SESSION',
-        session: { code: result.code, playerId: result.player_id,
-                   name: name.trim(), avatar, color },
-      })
-      dispatch({ type: 'VIEW', view: 'game' })
-    } catch (err: any) {
-      setError(err.message || 'Could not start a bot match')
-    } finally { setBusy(false) }
+  const profile = { name: name.trim() || 'Manager', avatar, color }
+  const saveProfile = () => {
+    localStorage.setItem('fg-name', profile.name)
+    localStorage.setItem('fg-avatar', avatar)
+    localStorage.setItem('fg-color', color)
   }
 
-  const enter = async (mode: 'create' | 'join') => {
-    if (!name.trim()) { setError('Enter your manager name first.'); return }
-    if (mode === 'join' && code.trim().length < 4) { setError('Enter a valid room code.'); return }
-    setBusy(true); setError('')
-    localStorage.setItem('cm-name', name.trim())
-    try {
-      const result = mode === 'create'
-        ? await api.createRoom(name.trim(), avatar, color)
-        : await api.joinRoom(code.trim().toUpperCase(), name.trim(), avatar, color)
-      sound.play('buy')
-      // Paint the roster from the REST response immediately; the WebSocket
-      // snapshot that follows will confirm/refresh it. This avoids a blank
-      // "Connecting to room…" flash after create/join.
-      dispatch({ type: 'STATE', state: result.state })
-      dispatch({
-        type: 'SESSION',
-        session: { code: result.code, playerId: result.player_id, name: name.trim(), avatar, color },
-      })
-      dispatch({ type: 'VIEW', view: 'lobby' })
-    } catch (err: any) {
-      setError(err.message || 'Could not connect to the server')
-    } finally { setBusy(false) }
+  const submitCreate = () => {
+    saveProfile()
+    create({ ...profile, settings })
   }
 
   return (
     <div className="landing">
-      <div className="landing-glow" />
-      <header className="landing-nav">
-        <div className="brand-mark"><span className="brand-ball">🏏</span> CRICKET <b>MONOPOLY</b></div>
-        <nav>
-          <button onClick={() => dispatch({ type: 'VIEW', view: 'howto' })}>How to play</button>
-          <button onClick={() => dispatch({ type: 'VIEW', view: 'leaderboard' })}>Leaderboard</button>
-        </nav>
-      </header>
-
-      <main className="landing-main">
-        <div className="hero">
-          <div className="hero-tag">THE ULTIMATE CRICKET STRATEGY ARENA</div>
-          <h1>Build a squad.<br /><span>Bowl them out.</span><br />Survive the innings.</h1>
-          <p className="hero-copy">
-            Draft a cricket legend or create your own, build a five-batsman squad, and outlast
-            three rivals in a real-time cricket economy. Every wicket counts. Every six scales.
+      <div className="landing-hero">
+        <div className="hero-copy">
+          <Badge tone="gold" icon="✨">THE COMPLETE FRANCHISE BOARD GAME</Badge>
+          <h1>BUILD A DYNASTY.<br /><span>OWN THE SEASON.</span></h1>
+          <p>
+            Draft a fictional squad of 15, explore 52 live board tiles, buy player markets and stadiums,
+            submit concealed T20 tactics, and out-manage up to five rivals across a full franchise season.
           </p>
-          <div className="hero-feats">
-            <div><strong>32</strong><span>Board spaces</span></div>
-            <div><strong>4</strong><span>Managers</span></div>
-            <div><strong>5</strong><span>Batsmen per squad</span></div>
+          <div className="hero-stats">
+            <div><strong>8</strong><span>Countries</span></div>
+            <div><strong>96</strong><span>Fictional Players</span></div>
+            <div><strong>52</strong><span>Board Tiles</span></div>
+            <div><strong>100</strong><span>Final Points</span></div>
           </div>
         </div>
+        <div className="hero-card">
+          <div className="hero-card-top"><span>🏏</span><div><small>SEASON PASS</small><strong>CRICKOPOLY FC</strong></div></div>
+          <div className="hero-pitch">
+            {Array.from({ length: 6 }).map((_, i) => <i key={i} />)}
+            <span>🏟️</span>
+          </div>
+          <div className="hero-card-row"><span>Starting purse</span><strong>1,500 FC</strong></div>
+          <div className="hero-card-row"><span>Squad / XI</span><strong>15 / 11</strong></div>
+          <div className="hero-card-row"><span>Format</span><strong>T20 · 20 overs</strong></div>
+        </div>
+      </div>
 
-        <div className="entry-card">
-          <div className="entry-head">
-            <span className="eyebrow">ENTER THE ARENA</span>
-            <h2>Create your manager</h2>
-          </div>
-          <label className="field">
-            <span>Manager name</span>
-            <input value={name} maxLength={20} placeholder="e.g. DhoniFan_07"
-              onChange={e => setName(e.target.value)} />
-          </label>
-          <div className="field">
-            <span>Avatar</span>
-            <div className="avatar-grid">
-              {AVATARS.map((a, i) => (
-                <button key={i} className={avatar === a ? 'selected' : ''} onClick={() => { setAvatar(a); sound.play('click') }}>{a}</button>
+      <div className="landing-grid">
+        <Panel title="Start a franchise" subtitle="Create a private room or jump straight into a bots-only season" icon="🚀">
+          <div className="profile-row">
+            <div className="avatar-picker">
+              {AVATARS.map(a => (
+                <button key={a} type="button" className={avatar === a ? 'active' : ''} onClick={() => setAvatar(a)}>{a}</button>
               ))}
             </div>
-          </div>
-          <div className="field">
-            <span>Team colour</span>
-            <div className="color-grid">
+            <div className="color-picker">
               {COLORS.map(c => (
-                <button key={c} style={{ background: c }} className={color === c ? 'selected' : ''}
-                  onClick={() => { setColor(c); sound.play('click') }} />
+                <button key={c} type="button" style={{ background: c }} className={color === c ? 'active' : ''}
+                  onClick={() => setColor(c)} aria-label={`Colour ${c}`} />
               ))}
             </div>
           </div>
           <label className="field">
-            <span>Room code <em>(to join a friend)</em></span>
-            <input value={code} maxLength={6} placeholder="ABC123" className="code-input"
-              onChange={e => setCode(e.target.value.toUpperCase())} />
+            <span>Manager / Franchise name</span>
+            <input value={name} maxLength={24} onChange={e => setName(e.target.value)} placeholder="Your franchise name" />
           </label>
-          {error && <p className="form-error">{error}</p>}
-          <div className="entry-actions">
-            <button className="btn primary large" disabled={busy} onClick={() => enter('create')}>
-              {busy ? 'Creating…' : 'Create room'}
-            </button>
-            <button className="btn ghost large" disabled={busy} onClick={() => enter('join')}>Join room</button>
+          <div className="tabs compact">
+            <button className={tab === 'new' ? 'active' : ''} onClick={() => setTab('new')}>New room</button>
+            <button className={tab === 'join' ? 'active' : ''} onClick={() => setTab('join')}>Join code</button>
+            <button className={tab === 'quick' ? 'active' : ''} onClick={() => setTab('quick')}>Quick play</button>
           </div>
-          <div className="quick-settings">
-            <label className="field compact"><span>Win condition</span>
-              <select value={victoryMode} onChange={e => setVictoryMode(e.target.value)}>
-                <option value="last_standing">Last manager standing</option>
-                <option value="turn_limit">Turn-limit ranking</option>
-              </select>
-            </label>
-            {victoryMode === 'turn_limit' && (
-              <label className="field compact"><span>Rounds</span>
-                <input type="number" min={1} max={200} value={turnLimit}
-                  onChange={e => setTurnLimit(Number(e.target.value) || 1)} />
+
+          {tab === 'new' && (
+            <div className="settings-grid">
+              <label className="field"><span>Mode</span>
+                <select value={settings.mode} onChange={e => setSettings({ ...settings, mode: e.target.value })}>
+                  <option value="standard">Standard Season (100 pts)</option>
+                  <option value="classic">Classic Survival</option>
+                </select>
               </label>
-            )}
+              <label className="field"><span>Franchises</span>
+                <select value={settings.max_players} onChange={e => setSettings({ ...settings, max_players: Number(e.target.value) })}>
+                  {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} managers</option>)}
+                </select>
+              </label>
+              <label className="field"><span>League rounds</span>
+                <select value={settings.season_rounds} onChange={e => setSettings({ ...settings, season_rounds: Number(e.target.value) })}>
+                  {[2, 4, 6, 8, 10, 12, 16].map(n => <option key={n} value={n}>{n} rounds</option>)}
+                </select>
+              </label>
+              <label className="field"><span>AI difficulty</span>
+                <select value={settings.ai_difficulty} onChange={e => setSettings({ ...settings, ai_difficulty: e.target.value })}>
+                  <option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
+                </select>
+              </label>
+              <label className="field"><span>Opening pitch</span>
+                <select value={settings.pitch} onChange={e => setSettings({ ...settings, pitch: e.target.value })}>
+                  {Object.entries(app.gamedata?.pitches || { flat: { name: 'Flat Pitch' } }).map(([key, p]) =>
+                    <option key={key} value={key}>{p.name}</option>)}
+                </select>
+              </label>
+              <label className="field"><span>Transfer window</span>
+                <select value={settings.transfer_window_every} onChange={e => setSettings({ ...settings, transfer_window_every: Number(e.target.value) })}>
+                  <option value={0}>Always open</option>
+                  <option value={2}>Every 2 rounds</option>
+                  <option value={3}>Every 3 rounds</option>
+                  <option value={4}>Every 4 rounds</option>
+                </select>
+              </label>
+            </div>
+          )}
+
+          {tab === 'join' && (
+            <label className="field">
+              <span>Room code</span>
+              <input className="code-input" value={code} maxLength={8} placeholder="ABCDE"
+                onChange={e => setCode(e.target.value.toUpperCase())} />
+            </label>
+          )}
+
+          {tab === 'quick' && (
+            <div className="callout">
+              <strong>Instant season</strong>
+              <p>Creates a 3-franchise room with two Medium AI managers and sensible defaults.</p>
+            </div>
+          )}
+
+          <div className="button-row">
+            {tab === 'new' && <Button onClick={submitCreate} disabled={app.busy}>Create room →</Button>}
+            {tab === 'join' && <Button onClick={() => { saveProfile(); join(code, profile.name, avatar, color) }}
+              disabled={app.busy || code.trim().length < 4}>Join room →</Button>}
+            {tab === 'quick' && <Button onClick={() => { saveProfile(); quick({ ...profile, settings: { ...DEFAULTS, max_players: 3 } }) }}
+              disabled={app.busy}>Start quick play →</Button>}
           </div>
-          <button className="btn gold large quick-bots" disabled={busy} onClick={playBots}>
-            {busy ? 'Starting…' : '⚡ Play vs Bots (instant match)'}
-          </button>
-          <p className="hint">Instant matches auto-draft your opening batsman. Create a room to choose a famous cricketer or customise your own.</p>
-          <p className="entry-foot">No account needed. Share your room code to invite friends.</p>
-        </div>
-      </main>
+        </Panel>
+
+        <Panel title="Continue a saved season" subtitle="Every action is persisted — refresh or restart safely" icon="💾"
+          action={<Button variant="subtle" small onClick={refreshSaved}>Refresh</Button>}>
+          {app.saved.length === 0 ? (
+            <div className="empty"><span>💾</span><strong>No saved seasons yet</strong>
+              <p>Create a room and your progress will appear here.</p></div>
+          ) : (
+            <div className="saved-list">
+              {app.saved.slice(0, 8).map(row => (
+                <button key={row.room_id} type="button" className="saved-row" onClick={() => continueRoom(row)}>
+                  <span className="saved-icon">{row.finished ? '🏆' : '🏏'}</span>
+                  <span className="saved-info">
+                    <strong>{row.winner_name || row.franchises.join(' vs ')}</strong>
+                    <small>{row.code} · Round {row.round} · {row.matches} matches · {row.mode}</small>
+                  </span>
+                  <span className="saved-time">{timeAgo(row.updated_at)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <div className="feature-strip">
+        <div><span>🎯</span><strong>Real T20 engine</strong><small>Phase-by-phase ball simulation with pitch, form and tactics.</small></div>
+        <div><span>🔒</span><strong>Concealed plans</strong><small>Both managers submit tactics before anything is revealed.</small></div>
+        <div><span>🤝</span><strong>Two-sided trades</strong><small>Contracts, venues, sponsors, cards and FC swap atomically.</small></div>
+        <div><span>⚙️</span><strong>Editable roster</strong><small>Hosts can tune fictional player data before kickoff.</small></div>
+      </div>
     </div>
   )
 }
