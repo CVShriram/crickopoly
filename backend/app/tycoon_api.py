@@ -1,4 +1,4 @@
-"""HTTP + WebSocket API for Cricket Card Battle (ruleset 3).
+"""HTTP + WebSocket API for Wicket Rush (ruleset 4).
 
 Registered as /api/fg in main.py, replacing the old franchise router while
 keeping the same room codes, sessions, save table and socket envelope.
@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from . import persistence as db
-from .game import data52, cardbattle as tycoon
+from .game import data52, wicketrush as tycoon
 
 FG = "/api/fg"
 router = APIRouter(prefix=FG, tags=["crickopoly-tycoon"])
@@ -92,6 +92,7 @@ def saved_summaries() -> list[dict]:
         state = data.get("state") or {}
         settings = state.get("settings") or {}
         franchises = state.get("franchises") or {}
+        turns = int(state.get("turn", 1) or 1)
         rows.append({
             "code": data.get("code", ""),
             "room_id": data.get("room_id", ""),
@@ -99,14 +100,16 @@ def saved_summaries() -> list[dict]:
             "created_at": data.get("created_at", 0),
             "updated_at": data.get("updated_at", time.time()),
             "phase": state.get("phase", "lobby"),
-            "round": state.get("round", 1),
-            "rounds": state.get("rounds", settings.get("rounds", tycoon.DEFAULT_SETTINGS["rounds"])),
-            "mode": settings.get("difficulty", tycoon.DEFAULT_SETTINGS["difficulty"]),
+            "turn": turns,
+            "turns": turns,
+            "round": turns,  # legacy alias for clients that still read it
+            "hand_size": settings.get("hand_size", tycoon.DEFAULT_SETTINGS["hand_size"]),
+            "mode": settings.get("difficulty", "medium"),
             "finished": bool(state.get("finished")),
             "winner_id": state.get("winner_id"),
             "winner_name": (franchises.get(state.get("winner_id"), {}) or {}).get("name"),
             "franchises": [f.get("name", "") for f in franchises.values()],
-            "matches": len([e for e in state.get("log", []) if e.get("kind") == "round"]),
+            "matches": len([e for e in state.get("log", []) if e.get("kind") == "card"]),
         })
     return rows
 
@@ -122,17 +125,13 @@ def clean_settings(raw: dict | None) -> dict:
     carry harmless metadata without breaking the room.
     """
     raw = dict(raw or {})
-    if "rounds" not in raw and "season_rounds" in raw:
-        raw["rounds"] = raw["season_rounds"]
     settings = dict(tycoon.DEFAULT_SETTINGS)
     settings.update(raw)
-    for key, low, high in (("max_players", 2, 6), ("rounds", 2, 12)):
+    for key, low, high in (("max_players", 2, 6), ("hand_size", 5, 12)):
         try:
             settings[key] = max(low, min(high, int(settings[key])))
         except (TypeError, ValueError):
             settings[key] = tycoon.DEFAULT_SETTINGS[key]
-    if not isinstance(settings.get("difficulty"), str) or not settings["difficulty"]:
-        settings["difficulty"] = tycoon.DEFAULT_SETTINGS["difficulty"]
     return settings
 
 
@@ -160,15 +159,12 @@ class TycoonRoom:
     def snapshot(self, viewer_id: str | None = None) -> dict:
         overrides = self.lobby.get("data_overrides") or (self.state or {}).get("data_overrides") or {}
         gamedata = data52.gamedata(overrides)
-        gamedata["tactical_cards"] = deepcopy(tycoon.TACTICS)
-        rounds = ((self.state or {}).get("rounds")
-                  or (self.state or {}).get("settings", {}).get("rounds")
-                  or self.lobby.get("settings", {}).get("rounds")
-                  or tycoon.DEFAULT_SETTINGS["rounds"])
+        live_settings = ((self.state or {}).get("settings")
+                         or self.lobby.get("settings", {}) or {})
+        hand_size = live_settings.get("hand_size", tycoon.DEFAULT_SETTINGS["hand_size"])
         gamedata["rules"] = {
             "ruleset": tycoon.RULES_VERSION,
-            "rounds": rounds,
-            "pitch_effects": deepcopy(tycoon.PITCH_EFFECTS),
+            "hand_size": hand_size,
             "min_players": 2,
             "max_players": 6,
         }
@@ -188,15 +184,15 @@ class TycoonRoom:
         state["you"] = viewer_id
         state["ruleset"] = tycoon.RULES_VERSION
 
-        # Sealed selections are never broadcast: a manager sees only their own
-        # committed card until every manager has played. Results stay visible.
-        plays = state.get("plays") or {}
-        if not state.get("revealed", False) and plays:
-            viewers = list(dict.fromkeys(list(state.get("order") or []) + list(plays)))
-            state["plays"] = {
-                pid: (deepcopy(plays.get(pid)) if pid == viewer_id else None)
-                for pid in viewers
-            }
+        # Hidden information stays hidden. A manager sees only their own hand;
+        # every rival gets an empty hand plus a count, and the draw pile is
+        # replaced by its size. The authoritative state is never mutated here.
+        for pid, franchise in (state.get("franchises") or {}).items():
+            if pid == viewer_id:
+                continue
+            franchise["hand_count"] = len(franchise.get("hand") or [])
+            franchise["hand"] = []
+        state["deck_count"] = len(state.pop("deck", []) or [])
 
         return state
 
@@ -270,7 +266,7 @@ class TycoonManager:
         room = self.by_code(body.code)
         max_players = int(room.lobby["settings"].get("max_players", 6))
         if room.state:
-            raise HTTPException(409, "Battle already started")
+            raise HTTPException(409, "Game already started")
         if len(room.members) >= max_players:
             raise HTTPException(409, "Room is full")
         pid = uuid.uuid4().hex
@@ -287,7 +283,7 @@ class TycoonManager:
         if room.host_id != player_id:
             raise HTTPException(403, "Only the host can add bots")
         if room.state:
-            raise HTTPException(409, "Battle already started")
+            raise HTTPException(409, "Game already started")
         max_players = int(room.lobby["settings"].get("max_players", 6))
         for _ in range(max(0, min(5, int(count)))):
             if len(room.members) >= max_players:
@@ -307,7 +303,7 @@ class TycoonManager:
         if room.host_id != player_id:
             raise HTTPException(403, "Only the host can edit settings")
         if room.state:
-            raise HTTPException(409, "Battle already started")
+            raise HTTPException(409, "Game already started")
         room.lobby["settings"] = clean_settings({**room.lobby["settings"], **(settings or {})})
         _save(room)
         return room.snapshot(player_id)
@@ -331,7 +327,7 @@ class TycoonManager:
         if len(room.members) < 2:
             raise HTTPException(409, "Need at least two managers")
         room.state = tycoon.new_state(room.lobby, room.lobby.get("data_overrides"))
-        tycoon.add_log(room.state, "Battle started. Pick a cricketer and a tactic.", "round")
+        tycoon.add_log(room.state, "Wicket Rush started — play a card to begin the rush.", "game")
         _save(room)
         return room.snapshot(player_id)
 
@@ -395,7 +391,7 @@ class TycoonHub:
                 return "AI managers added."
             if action == "start":
                 manager.start(room.code, pid)
-                return "Battle started."
+                return "Wicket Rush started."
             return "Action unavailable in the lobby."
 
         if action == "ping":
@@ -405,18 +401,18 @@ class TycoonHub:
             return "Player data updated."
         if action == "restart" and room.host_id == pid:
             manager.restart(room.code, pid)
-            return "Battle restarted."
+            return "Wicket Rush restarted."
         if state.get("finished") and action not in ("ping", "restart"):
-            raise ValueError("Battle is complete.")
+            raise ValueError("Wicket Rush is complete.")
 
         if action == "play_card":
-            tycoon.play_card(state, pid, payload.get("player_id"), payload.get("tactic_id"))
+            tycoon.play_card(state, pid, payload.get("player_id"), payload.get("target_id"))
             return "ok"
-        if action == "next":
-            pending = state.get("pending") or {}
-            if pending.get("type") != "result" or pid not in (pending.get("viewers") or []):
-                raise ValueError("Wait for the current action to finish.")
-            tycoon.advance_turn(state)
+        if action == "draw":
+            tycoon.draw(state, pid)
+            return "ok"
+        if action == "target":
+            tycoon.choose_target(state, pid, payload.get("target_id"))
             return "ok"
         raise ValueError(f"Unknown action: {action}")
 
@@ -424,25 +420,32 @@ class TycoonHub:
     def _signature(room: TycoonRoom) -> str:
         state = room.state or {}
         return json.dumps([
-            state.get("round"), state.get("turn_index"), state.get("plays"),
-            state.get("revealed"), state.get("pending"), state.get("finished"),
+            state.get("turn"), state.get("current_player_id"),
+            state.get("current_role"),
+            {pid: len(f.get("hand") or [])
+             for pid, f in (state.get("franchises") or {}).items()},
+            state.get("pending"), state.get("finished"),
+            len(state.get("discard") or []),
         ], sort_keys=True, default=str)
 
     async def auto_room(self, room: TycoonRoom) -> None:
-        """Drive bots only; humans keep full control of play and 'next'."""
+        """Drive bots only; humans keep every play/draw/target decision."""
         state = room.state
         if not state or state.get("finished"):
             return
         before = self._signature(room)
-        for _ in range(24):
+        for _ in range(32):
             if state.get("finished"):
                 break
             pending = state.get("pending") or {}
-            if pending.get("type") == "result":
-                viewers = [pid for pid in (pending.get("viewers") or [])
-                           if pid in state.get("franchises", {})]
-                if viewers and all(state["franchises"][pid].get("is_bot") for pid in viewers):
-                    tycoon.advance_turn(state)
+            if pending.get("type") == "target":
+                actor = pending.get("pid")
+                franchise = state.get("franchises", {}).get(actor) or {}
+                if franchise.get("is_bot"):
+                    previous = self._signature(room)
+                    tycoon.bot_action(state, actor)
+                    if self._signature(room) == previous:
+                        break
                     continue
                 break
 
@@ -544,11 +547,9 @@ class DataBody(ActorIn):
 @router.get("/gamedata")
 def gamedata() -> dict:
     data = data52.gamedata()
-    data["tactical_cards"] = deepcopy(tycoon.TACTICS)
     data["rules"] = {
         "ruleset": tycoon.RULES_VERSION,
-        "rounds": tycoon.DEFAULT_SETTINGS["rounds"],
-        "pitch_effects": deepcopy(tycoon.PITCH_EFFECTS),
+        "hand_size": tycoon.DEFAULT_SETTINGS["hand_size"],
         "min_players": 2,
         "max_players": 6,
     }

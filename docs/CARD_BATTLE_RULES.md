@@ -1,4 +1,6 @@
-# Crickopoly: Cricket Card Battle
+# Crickopoly: Cricket Card Battle — legacy ruleset 3
+
+> Superseded by `docs/WICKET_RUSH_RULES.md` (ruleset 4). Kept only as a record of the previous build.
 
 A complete rules replacement for Stadium Tycoon. Same real cricketers, rooms, sockets and saves; a much simpler game that can be explained in 30 seconds.
 

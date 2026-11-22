@@ -532,3 +532,98 @@ export type GameModal =
   | 'assets' | 'guide' | 'results' | 'history' | 'studio'
   | 'auction' | 'duel' | 'result' | 'market'
   | null
+
+/* ------------------------------------------------------------------------- *
+ * Wicket Rush (ruleset 4) — additive view types.
+ * Nothing above is removed. These shapes describe the server snapshot that
+ * the single-screen Rush UI consumes; optional members cover masked fields.
+ * ------------------------------------------------------------------------- */
+
+export interface RushLastCard {
+  player_id: string
+  name: string
+  role: Role
+  effect?: unknown
+  owner_id?: string | null
+  [key: string]: unknown
+}
+
+export interface RushPending {
+  type: 'target' | string
+  pid?: string
+  effect?: unknown
+  candidates?: string[]
+  [key: string]: unknown
+}
+
+export interface RushFranchise {
+  id: string
+  name: string
+  avatar: string
+  color: string
+  is_bot?: boolean
+  is_host?: boolean
+  /** Only present for the viewer; rivals expose hand_count instead. */
+  hand?: string[]
+  hand_count?: number
+  runs: number
+  wickets: number
+  drawn?: number
+  [key: string]: unknown
+}
+
+export interface RushStanding {
+  id: string
+  name: string
+  avatar?: string
+  color: string
+  runs: number
+  wickets: number
+  cards: number
+  score: number
+  rank: number
+}
+
+export interface RushState {
+  room_id: string
+  code: string
+  host_id?: string
+  ruleset?: number
+  started: boolean
+  finished: boolean
+  phase: string
+  turn: number
+  order: string[]
+  current_player_id: string | null
+  current_role: Role | null
+  /** Set after a batsman: only a bowler or all-rounder may be played next. */
+  forced_role?: Role | null
+  direction: number
+  last_card: RushLastCard | null
+  deck_count: number
+  franchises: Record<string, RushFranchise>
+  pending: RushPending | null
+  last_event: { type: string; text: string } | null
+  standings: RushStanding[]
+  gamedata: GameData
+  settings?: Record<string, unknown>
+  you?: string
+  winner_id?: string | null
+  [key: string]: unknown
+}
+
+export interface RushLobby {
+  room_id: string
+  code: string
+  host_id: string
+  phase: 'lobby'
+  started: false
+  finished?: boolean
+  ruleset?: number
+  members: LobbyMember[]
+  settings: Record<string, unknown>
+  you?: string
+  gamedata?: GameData
+  last_event?: { type: string; text: string } | null
+  [key: string]: unknown
+}
