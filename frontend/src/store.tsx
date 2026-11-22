@@ -102,23 +102,22 @@ const initial: AppState = {
 let toastId = 1
 
 function toastFor(event: any): Toast | null {
-  const p = event.payload || {}
-  const t = (title: string, text: string, tone: Toast['tone'], icon: string): Toast =>
-    ({ id: toastId++, title, text, tone, icon })
-  switch (event.type) {
-    case 'roll': return t('DICE ROLLED', `${(p.dice || []).join(' + ')} → tile ${p.to}`, 'info', '🎲')
-    case 'purchase': return t('ASSET SIGNED', p.payload?.price ? `${p.payload.price} FC` : 'Purchase complete', 'green', '🏟️')
-    case 'event': return t('SPECIAL TILE', String(p.type || p.name || 'Event resolved'), 'gold', '✨')
-    case 'tile_event': return t('EVENT RESOLVED', String(p.result?.type || p.event || 'Board effect applied'), 'gold', '✨')
-    case 'auction_won': return t('AUCTION WON', `${p.player_name || p.player_id} · ${p.price} FC`, 'gold', '🔨')
-    case 'auction_unsold': return t('LOT UNSOLD', 'No qualifying bid', 'info', '🔨')
-    case 'match': return t('MATCH COMPLETE', p.winner_name ? `${p.winner_name} win` : 'Result recorded', 'gold', '🏏')
-    case 'trade_offered': return t('TRADE RECEIVED', 'A two-sided offer awaits confirmation', 'info', '🤝')
-    case 'trade_completed': return t('TRADE COMPLETE', 'Contracts and FC exchanged', 'green', '🤝')
-    case 'training': return t('TRAINING DONE', `${p.attr} improved to ${p.after}`, 'green', '🏋️')
-    case 'champion': return t('CHAMPION CROWNED', String(p.winner_name || 'Season complete'), 'gold', '🏆')
-    default: return null
+  const text = String(event?.text || '').trim()
+  if (!text) return null
+  const labels: Record<string, [string, string, Toast['tone']]> = {
+    roll: ['DICE ROLLED', '🎲', 'info'],
+    buy: ['GROUND BOUGHT', '🏟️', 'green'],
+    sign: ['PLAYER SIGNED', '🤝', 'green'],
+    auction: ['AUCTION', '🔨', 'gold'],
+    bid: ['SEALED BID', '🔨', 'info'],
+    match: ['MATCH RESULT', '🏏', 'gold'],
+    transfer: ['GROUND TRANSFER', '🏟️', 'danger'],
+    skip: ['PASSED', '⏭️', 'info'],
+    round: ['ROUND UPDATE', '📅', 'info'],
+    final: ['CHAMPION', '🏆', 'gold'],
   }
+  const [title, icon, tone] = labels[event.type] || ['UPDATE', '✨', 'info']
+  return { id: toastId++, title, text, tone, icon }
 }
 
 function reducer(state: AppState, action: Action): AppState {

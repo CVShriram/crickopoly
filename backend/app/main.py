@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import config, franchise_api, franchise_persistence as fdb
+from . import config, tycoon_api as franchise_api, franchise_persistence as fdb
 from .game.board import serialize_board
 from .persistence import (global_leaderboard, init_db, load_rooms,
                           match_history, save_room)
@@ -62,7 +62,7 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"],
 )
 
-# Franchise game API (registered before the SPA catch-all at the bottom).
+# Rebuilt Stadium Tycoon API (registered before the SPA catch-all at the bottom).
 app.include_router(franchise_api.router)
 
 

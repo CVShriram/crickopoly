@@ -706,3 +706,28 @@ small { color: var(--muted); }
   .toast-stack { width: calc(100% - 24px); right: 12px; }
   .trade-detail { grid-template-columns: 1fr; }
 }
+
+/* ---------- Stadium Tycoon single-screen additions ---------- */
+.slim-header { height: 58px; gap: 16px; }
+.slim-header .brand small { letter-spacing: .2em; }
+.header-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.rail-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rail-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
+.rail-stats .stat { padding: 9px 11px; }
+.rail-stats .stat-value { font-size: 18px; }
+.mt-12 { margin-top: 12px; }
+.dice-display.single span { width: 58px; height: 58px; font-size: 36px; border-radius: 12px; }
+.center-roll.big { padding: 14px 30px; font-size: 17px; letter-spacing: .1em; }
+.board-hint { margin-top: 3px !important; color: var(--gold); font-size: 10px !important; }
+.action-primary { padding: 14px 22px; font-size: 14px; letter-spacing: .05em; }
+.synergy-on { color: #7ee6bd !important; font-weight: 800; }
+.synergy-off { color: var(--muted) !important; }
+.policy-card { padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.03); }
+.policy-card > span { font-size: 20px; }
+.policy-card strong { display: block; margin: 5px 0 3px; font-size: 12px; color: var(--gold); }
+.policy-card p { margin: 0; font-size: 10px; color: var(--muted); }
+.summary-row.champion { border-color: var(--line-strong); background: rgba(212,175,95,.08); }
+@media (max-width: 720px) {
+  .header-meta { display: none; }
+  .action-primary { padding: 12px 15px; font-size: 12px; }
+}

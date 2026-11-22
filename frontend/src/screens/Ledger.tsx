@@ -79,7 +79,7 @@ export function Ledger() {
         <Panel title="Season controls" subtitle="Host-only destructive actions" icon="⚙️">
           <div className="callout"><strong>Autosave is always on</strong>
             <p>Every WebSocket action is persisted immediately. Use Continue or open the invite link to rejoin this room.</p></div>
-          <div className="invite-box">{window.location.origin}{window.location.pathname}?code={state.code}&token={app.session?.playerId}</div>
+          <div className="invite-box">{window.location.origin}{window.location.pathname}?code={state.code}&join=1</div>
           {isHost && <Button variant="danger" block onClick={() => {
             if (window.confirm('Restart this season? All current progress will be replaced.')) {
               send('restart', {}); refreshSaved(); dispatch({ type: 'VIEW', view: 'draft' })

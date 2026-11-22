@@ -52,7 +52,11 @@ export interface GameData {
   sponsors: Array<{ id: string; name: string; icon: string; per_round: number; reputation: number }>
   training: Record<string, { name: string; cost: number; attr: string; gain: number; icon: string }>
   injuries: Record<string, { name: string; matches: number; cost: number; icon: string }>
-  tactical_cards: Record<string, { id: string; name: string; icon: string; desc: string; phase: string }>
+  tactical_cards: Record<string, {
+    id: string; name: string; icon: string; desc: string; phase?: string
+    kind?: string; run_mod?: number; bowl_mod?: number; risk?: number
+    pitch?: string; pitch_run?: number; pitch_wicket?: number
+  }>
   rules: Record<string, any>
 }
 
@@ -269,3 +273,146 @@ export const playerById = (state: GameState | null, id: string | null | undefine
 
 export const me = (state: GameState | null): Franchise | undefined =>
   state?.you && state.franchises ? state.franchises[state.you] : undefined
+
+/* ------------------------------------------------------------------------- *
+ * Stadium Tycoon (ruleset 2) — additive view types.
+ * The legacy interfaces above are intentionally untouched: old screens may
+ * still import them, but the new single-screen UI reads the shapes below.
+ * ------------------------------------------------------------------------- */
+
+export interface TycoonFranchise {
+  id: string
+  name: string
+  avatar: string
+  color: string
+  is_host?: boolean
+  is_bot?: boolean
+  difficulty?: string
+  pos: number
+  balance: number
+  squad: string[]
+  tactics: string[]
+  stadiums: Array<string | number>
+  duels_won: number
+  last_action: string
+}
+
+export interface TycoonStanding {
+  rank: number
+  id: string
+  name: string
+  avatar?: string
+  color: string
+  brand_value: number
+  cash: number
+  stadiums: number
+  players: number
+  duels_won: number
+}
+
+export interface TycoonScorecardSide {
+  id: string
+  name: string
+  runs: number
+  wickets: number
+  card: string
+  icon?: string
+}
+
+export interface TycoonScorecard {
+  challenger: TycoonScorecardSide
+  defender: TycoonScorecardSide
+}
+
+/** Server descriptors. Optional members reflect the different pending phases. */
+export interface TycoonPending {
+  type: 'buy_stadium' | 'sign_player' | 'duel' | 'result' | string
+  pid?: string
+  pos?: number
+  price?: number
+  title?: string
+  country?: string
+  role?: string
+  candidates?: string[]
+  defender?: string
+  rent?: number
+  pot?: boolean
+  cards?: Record<string, string>
+  result?: unknown
+  label?: string
+  text?: string
+  scorecard?: TycoonScorecard
+  pitch?: string
+  winner_id?: string | null
+  paid?: number
+  multiplier?: number
+  viewers?: string[]
+}
+
+export interface TycoonAuction {
+  id: string
+  player_id: string
+  base_price: number
+  bids: Record<string, number>
+  passed: string[]
+  opened_by: string
+  revealed: boolean
+  my_bid?: number
+  has_passed?: boolean
+  player?: PlayerData
+}
+
+export interface TycoonLogEntry {
+  text?: string
+  kind?: string
+  round?: number
+}
+
+export interface TycoonState {
+  room_id: string
+  code: string
+  host_id?: string
+  ruleset?: number
+  started: boolean
+  finished: boolean
+  phase: string
+  season?: number
+  round: number
+  mode?: string
+  current_player_id: string | null
+  order: string[]
+  pitch: string
+  settings?: Record<string, unknown>
+  franchises: Record<string, TycoonFranchise>
+  board: Tile[]
+  ownership: Record<string, string>
+  dice: number[]
+  pending: TycoonPending | null
+  auction: TycoonAuction | null
+  standings: TycoonStanding[]
+  gamedata: GameData
+  you?: string
+  log: TycoonLogEntry[]
+  winner_id?: string | null
+  data_overrides?: Record<string, unknown>
+}
+
+export interface TycoonLobby {
+  room_id: string
+  code: string
+  host_id: string
+  phase: 'lobby'
+  started: false
+  finished?: boolean
+  ruleset?: number
+  members: LobbyMember[]
+  settings: Record<string, unknown>
+  you?: string
+  data_overrides?: Record<string, unknown>
+  gamedata: GameData
+}
+
+export type GameModal =
+  | 'assets' | 'guide' | 'results' | 'history' | 'studio'
+  | 'auction' | 'duel' | 'result' | 'market'
+  | null
