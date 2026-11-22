@@ -1,8 +1,9 @@
-"""Static game data for Crickopoly: 52-tile board, 96 fictional players,
+"""Static game data for Crickopoly: 52-tile board, 96 real cricketers,
 8 stadiums, 8 event tiles, pitches and configurable rule tables.
 
-All player names are FICTIONAL. No real cricketer likenesses, official league
-branding or copyrighted logos are used.
+Player names are factual public data for cricketers active between 2015 and
+2023. No photographs, likenesses, official league branding or copyrighted
+logos are used. Hosts can rename or re-rate any player in their own room.
 """
 
 from __future__ import annotations
@@ -197,56 +198,59 @@ def build_board() -> list[dict]:
 BOARD: list[dict] = build_board()
 
 # ---------------------------------------------------------------------------
-# 96 fictional players: 8 countries x 4 roles x 3 tiers.
+# 96 real cricketers active between 2015 and 2023: 8 countries x 4 roles x 3 tiers.
+# Names are used as factual public data only. No photographs, likenesses,
+# official league branding or copyrighted logos are included.
+# Tier order is bronze, silver, gold (matches TIERS below).
 # ---------------------------------------------------------------------------
 _NAME_BANK: dict[str, dict[str, list[str]]] = {
     "india": {
-        "batsman": ["Rohan Mehta", "Arjun Deshpande", "Kabir Sharma"],
-        "bowler": ["Dev Patel", "Ishaan Malhotra", "Nikhil Rao"],
-        "wicketkeeper": ["Aman Verma", "Rahul Bhatt", "Sameer Joshi"],
-        "allrounder": ["Vikram Nair", "Sahil Kapoor", "Aditya Rao"],
+        "batsman": ["Ajinkya Rahane", "Rohit Sharma", "Virat Kohli"],
+        "bowler": ["Kuldeep Yadav", "Mohammed Shami", "Jasprit Bumrah"],
+        "wicketkeeper": ["Dinesh Karthik", "Rishabh Pant", "MS Dhoni"],
+        "allrounder": ["Axar Patel", "Ravindra Jadeja", "Hardik Pandya"],
     },
     "australia": {
-        "batsman": ["Jack Maddison", "Lachlan Reid", "Cooper Hayes"],
-        "bowler": ["Mitchell Vaughan", "Brodie Ferguson", "Angus McLeod"],
-        "wicketkeeper": ["Oliver Barnes", "Hamish Clarke", "Toby Walsh"],
-        "allrounder": ["Riley Donovan", "Cameron Bell", "Dylan Fraser"],
+        "batsman": ["Shaun Marsh", "David Warner", "Steve Smith"],
+        "bowler": ["Adam Zampa", "Mitchell Starc", "Pat Cummins"],
+        "wicketkeeper": ["Josh Inglis", "Matthew Wade", "Tim Paine"],
+        "allrounder": ["Mitchell Marsh", "Marcus Stoinis", "Glenn Maxwell"],
     },
     "england": {
-        "batsman": ["Oliver Penn", "Harry Whitfield", "Edward Brooks"],
-        "bowler": ["James Fairbanks", "Thomas Grayson", "William Hurst"],
-        "wicketkeeper": ["Charles Wilde", "George Eaton", "Frederick Lane"],
-        "allrounder": ["Henry Ashwood", "Arthur Kelsey", "Rupert Shaw"],
+        "batsman": ["James Vince", "Jason Roy", "Joe Root"],
+        "bowler": ["Adil Rashid", "Mark Wood", "Jofra Archer"],
+        "wicketkeeper": ["Sam Billings", "Jonny Bairstow", "Jos Buttler"],
+        "allrounder": ["Moeen Ali", "Liam Livingstone", "Ben Stokes"],
     },
     "south_africa": {
-        "batsman": ["Thabo Nkosi", "Ruan Botha", "Sibusiso Dlamini"],
-        "bowler": ["Kagiso Mokoena", "Duan van Wyk", "Lwazi Ndelu"],
-        "wicketkeeper": ["Sipho Mahlangu", "Pieter Snyman", "Bongani Zulu"],
-        "allrounder": ["Andile Jafta", "Ruben Kruger", "Mthokozisi Nene"],
+        "batsman": ["Hashim Amla", "Faf du Plessis", "AB de Villiers"],
+        "bowler": ["Morne Morkel", "Imran Tahir", "Kagiso Rabada"],
+        "wicketkeeper": ["Ryan Rickelton", "Heinrich Klaassen", "Quinton de Kock"],
+        "allrounder": ["Andile Phehlukwayo", "Wayne Parnell", "Chris Morris"],
     },
     "pakistan": {
-        "batsman": ["Zaid Mahmood", "Bilal Ahmed", "Imran Sheikh"],
-        "bowler": ["Usman Qadir", "Hassan Raza", "Naveed Iqbal"],
-        "wicketkeeper": ["Amir Farooq", "Kamran Yousuf", "Saadullah Khan"],
-        "allrounder": ["Fawad Ali", "Shahid Mahmood", "Arsam Butt"],
+        "batsman": ["Ahmed Shehzad", "Fakhar Zaman", "Babar Azam"],
+        "bowler": ["Mohammad Amir", "Hasan Ali", "Shaheen Afridi"],
+        "wicketkeeper": ["Sarfaraz Ahmed", "Kamran Akmal", "Mohammad Rizwan"],
+        "allrounder": ["Imad Wasim", "Mohammad Hafeez", "Shadab Khan"],
     },
     "new_zealand": {
-        "batsman": ["Finn Wilson", "Hamish Noble", "Jonty Carter"],
-        "bowler": ["Lockie Fraser", "Mason Rowe", "Tane Whitaker"],
-        "wicketkeeper": ["Reuben Foster", "Kieran Parry", "Samuel Ewen"],
-        "allrounder": ["Mitchell Cross", "Ethan Gillies", "Noah Sinclair"],
+        "batsman": ["Colin Munro", "Martin Guptill", "Kane Williamson"],
+        "bowler": ["Ish Sodhi", "Tim Southee", "Trent Boult"],
+        "wicketkeeper": ["Tim Seifert", "Glenn Phillips", "Devon Conway"],
+        "allrounder": ["James Neesham", "Colin de Grandhomme", "Mitchell Santner"],
     },
     "west_indies": {
-        "batsman": ["Marcus Haynes", "Dwayne Holder", "Kevon Best"],
-        "bowler": ["Shamar Williams", "Oshane Thomas", "Ronaldo Kurton"],
-        "wicketkeeper": ["Andre Foster", "Dervon Smith", "Kirk Charles"],
-        "allrounder": ["Keiron Pollard", "Romario Holder", "Daren Brathwaite"],
+        "batsman": ["Lendl Simmons", "Shai Hope", "Chris Gayle"],
+        "bowler": ["Samuel Badree", "Oshane Thomas", "Sunil Narine"],
+        "wicketkeeper": ["Chadwick Walton", "Denesh Ramdin", "Nicholas Pooran"],
+        "allrounder": ["Carlos Brathwaite", "Kieron Pollard", "Andre Russell"],
     },
     "sri_lanka": {
-        "batsman": ["Nuwan Perera", "Kavindu Silva", "Thisara Fernando"],
-        "bowler": ["Dilan Ratnayake", "Ashen Wickramasinghe", "Chamika Karunaratne"],
-        "wicketkeeper": ["Saman Jayawardene", "Kusal Mendis", "Avishka Fernando"],
-        "allrounder": ["Angelo Mathews", "Dhananjaya Silva", "Ramesh Pathirana"],
+        "batsman": ["Upul Tharanga", "Pathum Nissanka", "Kusal Mendis"],
+        "bowler": ["Akila Dananjaya", "Dushmantha Chameera", "Lasith Malinga"],
+        "wicketkeeper": ["Minod Bhanuka", "Dinesh Chandimal", "Kusal Perera"],
+        "allrounder": ["Thisara Perera", "Angelo Mathews", "Wanindu Hasaranga"],
     },
 }
 
@@ -402,7 +406,7 @@ RULES: dict = {
 
 
 # Base snapshots are kept immutable so host overrides can be applied to one
-# room at a time without corrupting the shipped fictional roster.
+# room at a time without corrupting the shipped 2015-2023 roster.
 _BASE_PLAYERS = deepcopy(PLAYERS)
 _BASE_RULES = deepcopy(RULES)
 _BASE_PLAYERS_BY_ID = {p["id"]: p for p in _BASE_PLAYERS}
@@ -423,7 +427,7 @@ def _clamp(value: int, low: int, high: int) -> int:
 
 
 def sanitise_player_override(pid: str, changes: dict) -> dict:
-    """Return only legal, bounded edits for one fictional player."""
+    """Return only legal, bounded edits for one rostered player."""
     base = _BASE_PLAYERS_BY_ID.get(pid)
     if not base or not isinstance(changes, dict):
         return {}

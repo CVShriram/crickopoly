@@ -13,7 +13,7 @@ export function HowTo() {
       </div>
       <div className="howto-grid">
         {[
-          { icon: '📝', title: '1 · Draft', text: 'Each franchise drafts 15 fictional players in snake order. Build role depth: 5 batters, 5 bowlers, 2 keepers and 3 all-rounders.' },
+          { icon: '📝', title: '1 · Draft', text: 'Each franchise drafts 15 real cricketers in snake order. Build role depth: 5 batters, 5 bowlers, 2 keepers and 3 all-rounders.' },
           { icon: '🎲', title: '2 · Move', text: 'On your turn roll two dice and move clockwise around 52 tiles. Passing Season Start pays 200 FC.' },
           { icon: '🌍', title: '3 · Own', text: 'Buy unowned player markets and stadiums. Rivals pay fees when they land; completing all four roles in a country pays 120 FC.' },
           { icon: '✨', title: '4 · Events', text: 'Eight special tiles mutate state: auctions, matchday, injury reserve, training camp, sponsorship, qualifier, strategy room and recovery.' },

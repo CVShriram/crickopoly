@@ -178,7 +178,7 @@ class FranchiseManager:
 
     def update_data_overrides(self, room: FranchiseRoom, pid: str,
                               incoming: dict) -> dict:
-        """Host-only editor for the fictional roster/rule data."""
+        """Host-only editor for the player roster/rule data."""
         if pid != room.host_id:
             raise ValueError("Only the host can edit game data")
         source = incoming if isinstance(incoming, dict) else {}

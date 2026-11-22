@@ -85,7 +85,7 @@ def test_board_has_eight_unique_event_tiles_and_four_corners():
     assert [t["position"] for t in BOARD if t["kind"] == "corner"] == [0, 13, 26, 39]
 
 
-def test_player_database_has_96_unique_fictional_players():
+def test_player_database_has_96_unique_real_players():
     assert len(PLAYERS) == 96
     assert len({p["id"] for p in PLAYERS}) == 96
     assert len({p["name"] for p in PLAYERS}) == 96
@@ -94,6 +94,15 @@ def test_player_database_has_96_unique_fictional_players():
             group = [p for p in PLAYERS if p["country"] == country and p["role"] == role]
             assert len(group) == 3
             assert {p["tier"] for p in group} == set(data52.TIERS)
+
+
+def test_roster_uses_real_2015_2023_cricketers():
+    names = {p["name"] for p in PLAYERS}
+    for expected in ("Virat Kohli", "Joe Root", "Babar Azam", "Steve Smith",
+                     "Kane Williamson", "AB de Villiers", "Andre Russell",
+                     "Wanindu Hasaranga"):
+        assert expected in names
+    assert "Arjun Deshpande" not in names
 
 
 def test_players_have_role_specific_abilities_and_full_state_fields():
@@ -939,7 +948,7 @@ def test_admin_editable_data_is_sanitised_and_persisted():
     data52.apply_global_overrides(s.data_overrides)
     assert data52.PLAYERS_BY_ID[pid]["name"] == "Editorial Roster Name"
     data52.apply_global_overrides({})
-    assert data52.PLAYERS_BY_ID[pid]["name"] == "Rohan Mehta"
+    assert data52.PLAYERS_BY_ID[pid]["name"] == "Ajinkya Rahane"
 
 
 def test_saved_room_summaries_support_continue(tmp_path, monkeypatch):

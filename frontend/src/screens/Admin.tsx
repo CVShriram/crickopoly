@@ -54,12 +54,12 @@ export function Admin() {
     <div className="page admin-page">
       <div className="page-head">
         <div><small>DATA STUDIO</small><h1>Game data & season studio</h1>
-          <p>Tune the fictional roster and bounded rules. No real player likenesses, logos or licensed branding are used.</p></div>
+          <p>Tune the 96 real cricketers and bounded rules. Names only — no player photos, logos or licensed branding.</p></div>
         <Badge tone={isHost ? 'green' : 'danger'} icon="🔒">{isHost ? 'HOST ACCESS' : 'READ ONLY'}</Badge>
       </div>
 
       <div className="dashboard-strip compact">
-        <Stat label="Fictional players" value={players.length} icon="👥" />
+        <Stat label="Real cricketers" value={players.length} icon="👥" />
         <Stat label="Edited players" value={Object.keys(overrides.players || {}).length} tone="gold" icon="✏️" />
         <Stat label=" Edited rules" value={Object.keys(overrides.rules || {}).length} tone="blue" icon="📐" />
         <Stat label="Board tiles" value={state.board?.length || 52} icon="🗺️" />
@@ -75,7 +75,7 @@ export function Admin() {
 
       {tab === 'roster' && selected && (
         <div className="admin-layout">
-          <Panel title="Roster" subtitle="96 fictional players · 8 countries × 4 roles × 3 tiers" icon="📋"
+          <Panel title="Roster" subtitle="96 real cricketers · 8 countries × 4 roles × 3 tiers" icon="📋"
             action={<input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search roster…" />}>
             <div className="roster-list">
               {filtered.map(p => (
@@ -130,8 +130,8 @@ export function Admin() {
       {tab === 'about' && (
         <Panel title="Content & licensing policy" subtitle="Safe by design" icon="🛡️">
           <div className="policy-grid">
-            <div><span>✅</span><strong>Fictional roster</strong><p>All 96 player names and attributes are original fictional data.</p></div>
-            <div><span>✅</span><strong>No official logos</strong><p>Venues use names only. No league, team or broadcast marks are bundled.</p></div>
+            <div><span>✅</span><strong>Real names, 2015-2023</strong><p>96 cricketers from the eight listed countries. Names are factual public data.</p></div>
+            <div><span>✅</span><strong>No photos or logos</strong><p>Generic initials only. No player likenesses, league, team or broadcast marks are bundled.</p></div>
             <div><span>✅</span><strong>Editable data</strong><p>Hosts can rename players and tune ratings for their own private league.</p></div>
             <div><span>✅</span><strong>Virtual currency only</strong><p>FC is a game ledger. Nothing here accepts deposits, wagers or payouts.</p></div>
           </div>

@@ -45,12 +45,12 @@ export function Landing() {
           <Badge tone="gold" icon="✨">THE COMPLETE FRANCHISE BOARD GAME</Badge>
           <h1>BUILD A DYNASTY.<br /><span>OWN THE SEASON.</span></h1>
           <p>
-            Draft a fictional squad of 15, explore 52 live board tiles, buy player markets and stadiums,
-            submit concealed T20 tactics, and out-manage up to five rivals across a full franchise season.
+            Draft a squad of 15 real cricketers from 2015-2023, explore 52 live board tiles, buy player
+            markets and stadiums, submit concealed T20 tactics, and out-manage up to five rivals.
           </p>
           <div className="hero-stats">
             <div><strong>8</strong><span>Countries</span></div>
-            <div><strong>96</strong><span>Fictional Players</span></div>
+            <div><strong>96</strong><span>Real Cricketers</span></div>
             <div><strong>52</strong><span>Board Tiles</span></div>
             <div><strong>100</strong><span>Final Points</span></div>
           </div>
@@ -182,7 +182,7 @@ export function Landing() {
         <div><span>🎯</span><strong>Real T20 engine</strong><small>Phase-by-phase ball simulation with pitch, form and tactics.</small></div>
         <div><span>🔒</span><strong>Concealed plans</strong><small>Both managers submit tactics before anything is revealed.</small></div>
         <div><span>🤝</span><strong>Two-sided trades</strong><small>Contracts, venues, sponsors, cards and FC swap atomically.</small></div>
-        <div><span>⚙️</span><strong>Editable roster</strong><small>Hosts can tune fictional player data before kickoff.</small></div>
+        <div><span>⚙️</span><strong>Editable roster</strong><small>Hosts can rename and re-rate players before kickoff.</small></div>
       </div>
     </div>
   )

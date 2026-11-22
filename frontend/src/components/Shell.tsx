@@ -77,7 +77,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       )}
       <main className="main-content">{children}</main>
       <footer className="footer">
-        <span>Cricket Monopoly · Fictional roster · Virtual FC only</span>
+        <span>Cricket Monopoly · Real names 2015-2023 · Virtual FC only</span>
         <span>Season {app.state?.season || 1} · Code {app.session?.code || '—'}</span>
       </footer>
     </div>

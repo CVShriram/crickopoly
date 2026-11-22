@@ -116,7 +116,7 @@ export function Auctions() {
           </Panel>
         </div>
       ) : (
-        <Panel title="Open a scouting auction" subtitle="List an unsigned fictional player and set the opening price" icon="📢">
+        <Panel title="Open a scouting auction" subtitle="List an unsigned cricketer and set the opening price" icon="📢">
           <div className="open-auction-form">
             <label className="field"><span>Auction type</span>
               <select value={kind} onChange={e => setKind(e.target.value as any)}>
