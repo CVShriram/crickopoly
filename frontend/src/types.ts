@@ -766,3 +766,153 @@ export interface MonopolyLobby {
   gamedata: MonopolyGameData
   [key: string]: unknown
 }
+
+/* ------------------------------------------------------------------------- *
+ * Auction + Tournament (ruleset 7) — additive view types.
+ * Nothing above is removed. These shapes describe the sealed-bid auction and
+ * round-robin tournament snapshot consumed by AuctionTournamentScreen.
+ * Optional / index-signature members cover fields that arrive only at certain
+ * phases, or that the server masks until a lot is resolved.
+ * ------------------------------------------------------------------------- */
+
+export interface AuctionTournamentPlayer {
+  id: string
+  name: string
+  country?: string
+  flag?: string
+  role?: string | Role
+  tier?: string
+  overall?: number
+  /** Some data sets expose BAT/BOWL as `bat`/`bowl`, others as `batting`/`bowling`. */
+  bat?: number
+  bowl?: number
+  batting?: number
+  bowling?: number
+  value?: number
+  portrait_hue?: number
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentBid {
+  player_id?: string
+  amount?: number
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentFranchise {
+  id: string
+  name: string
+  avatar: string
+  color: string
+  is_bot?: boolean
+  fc: number
+  squad: string[]
+  captain: string | null
+  tactic: string | null
+  points: number
+  total_score: number
+  wins: number
+  losses: number
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentStanding {
+  id: string
+  name: string
+  avatar?: string
+  color: string
+  points: number
+  total_score: number
+  wins: number
+  losses: number
+  squad_size: number
+  fc: number
+  rank: number
+  [key: string]: unknown
+}
+
+/** Fixtures arrive as objects; arrays of two ids are tolerated as well. */
+export interface AuctionTournamentFixture {
+  a?: string
+  b?: string
+  round?: number | string
+  label?: string
+  played?: boolean
+  result?: unknown
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentResult {
+  type: 'lot' | 'match' | string
+  winner_id?: string | null
+  winner?: string | null | { id?: string; name?: string }
+  price?: number
+  winning_bid?: number
+  amount?: number
+  player_id?: string
+  bids?: Record<string, unknown> | Array<unknown>
+  rows?: Array<Record<string, unknown>>
+  a?: string
+  b?: string
+  a_score?: number
+  b_score?: number
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentPending {
+  type: string
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentGameData {
+  players: AuctionTournamentPlayer[]
+  rules?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentState {
+  room_id?: string
+  code: string
+  host_id?: string
+  ruleset?: number
+  started: boolean
+  finished: boolean
+  phase: 'auction' | 'tournament' | 'over' | string
+  turn: number
+  lot_index: number
+  /** Lot count, or the ordered lot list when the server sends full players. */
+  lots: number | string[]
+  budget: number
+  current_lot: AuctionTournamentPlayer | null
+  bids: Record<string, AuctionTournamentBid | null>
+  last_result: AuctionTournamentResult | null
+  pending: AuctionTournamentPending | null
+  franchises: Record<string, AuctionTournamentFranchise>
+  fixtures: AuctionTournamentFixture[] | unknown[]
+  match_index: number
+  match_results: Array<Record<string, unknown>>
+  standings: AuctionTournamentStanding[]
+  gamedata: AuctionTournamentGameData
+  settings?: Record<string, unknown>
+  you?: string
+  winner_id?: string | null
+  members?: LobbyMember[]
+  log?: Array<Record<string, unknown>>
+  events?: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
+
+export interface AuctionTournamentLobby {
+  room_id?: string
+  code: string
+  host_id: string
+  phase: 'lobby'
+  started: false
+  finished?: boolean
+  ruleset?: number
+  members: LobbyMember[]
+  settings: Record<string, unknown>
+  you?: string
+  gamedata: AuctionTournamentGameData
+  [key: string]: unknown
+}

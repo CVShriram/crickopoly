@@ -1,4 +1,7 @@
-# Crickopoly: Cricket Monopoly (ruleset 6)
+# Crickopoly: Cricket Monopoly — legacy ruleset 6
+
+> Superseded by `docs/AUCTION_TOURNAMENT_RULES.md` (ruleset 7). Kept only as a record of the previous build.
+
 
 Monopoly with real cricketers. Buy squares, charge rivals runs, trade property, and finish with the most runs.
 
