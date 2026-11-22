@@ -1,4 +1,6 @@
-# Crickopoly: Wicket Rush
+# Crickopoly: Wicket Rush — legacy ruleset 4
+
+> Superseded by `docs/CRICKET_MONOPOLY_RULES.md` (ruleset 5). Kept only as a record of the previous build.
 
 A Uno-style cricket card game. Real cricketers are the cards. Empty your hand first to win.
 

@@ -1,6 +1,6 @@
 # Crickopoly: Stadium Tycoon — legacy ruleset 2
 
-> Superseded by `docs/WICKET_RUSH_RULES.md` (ruleset 4). Kept only as a record of an older build.
+> Superseded by `docs/CRICKET_MONOPOLY_RULES.md` (ruleset 5). Kept only as a record of an older build.
 
 Replaces the old draft/economy/tournament rules. Keeps the existing real-cricketer roster, 52-tile board, 8 stadiums, 2–6 managers, rooms, sockets and save table. New rooms use ruleset 2.
 

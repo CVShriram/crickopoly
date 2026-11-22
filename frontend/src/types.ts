@@ -627,3 +627,125 @@ export interface RushLobby {
   last_event?: { type: string; text: string } | null
   [key: string]: unknown
 }
+
+/* ------------------------------------------------------------------------- *
+ * Cricket Monopoly (ruleset 5) — additive view types.
+ * The legacy interfaces above are intentionally untouched. These shapes
+ * describe the 52-square snapshot consumed by the MonopolyScreen UI.
+ * ------------------------------------------------------------------------- */
+
+export interface MonopolyCountryMeta {
+  name?: string
+  flag?: string
+  color?: string
+  [key: string]: unknown
+}
+
+export interface MonopolyGameData {
+  players: PlayerData[]
+  countries: Record<string, MonopolyCountryMeta>
+  roles?: string[]
+  rules?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface MonopolyProperty {
+  owner?: string | null
+  level?: number
+  price?: number
+  [key: string]: unknown
+}
+
+export interface MonopolyPending {
+  type: 'buy' | 'auction' | string
+  pid?: string
+  tile_id?: number | string
+  price?: number
+  [key: string]: unknown
+}
+
+export interface MonopolyFranchise {
+  id: string
+  name: string
+  avatar: string
+  color: string
+  is_bot?: boolean
+  is_host?: boolean
+  difficulty?: string
+  pos: number
+  fc: number
+  runs: number
+  wickets: number
+  max_wickets?: number
+  laps: number
+  squad: string[] | number
+  skipped?: number | boolean
+  injured?: number | boolean
+  owned?: Array<string | number> | number
+  out?: boolean
+  [key: string]: unknown
+}
+
+export interface MonopolyStanding {
+  id: string
+  name: string
+  avatar?: string
+  color: string
+  runs: number
+  fc: number
+  wickets: number
+  laps: number
+  rank: number
+  [key: string]: unknown
+}
+
+export interface MonopolyLastEvent {
+  type: string
+  text: string
+  [key: string]: unknown
+}
+
+export interface MonopolyState {
+  room_id?: string
+  code: string
+  host_id?: string
+  ruleset?: number
+  started: boolean
+  finished: boolean
+  phase: 'lobby' | 'play' | 'over' | string
+  turn: number
+  laps?: number
+  order: string[]
+  turn_index?: number
+  current_player_id: string | null
+  dice: number[]
+  rolled?: boolean
+  pending: MonopolyPending | null
+  board: Tile[]
+  properties: Record<string, MonopolyProperty>
+  franchises: Record<string, MonopolyFranchise>
+  last_event?: MonopolyLastEvent | null
+  standings: MonopolyStanding[]
+  gamedata: MonopolyGameData
+  settings?: Record<string, unknown>
+  you?: string
+  winner_id?: string | null
+  members?: LobbyMember[]
+  log?: Array<{ text?: string; type?: string; [key: string]: unknown }>
+  [key: string]: unknown
+}
+
+export interface MonopolyLobby {
+  room_id?: string
+  code: string
+  host_id: string
+  phase: 'lobby'
+  started: false
+  finished?: boolean
+  ruleset?: number
+  members: LobbyMember[]
+  settings: Record<string, unknown>
+  you?: string
+  gamedata: MonopolyGameData
+  [key: string]: unknown
+}
