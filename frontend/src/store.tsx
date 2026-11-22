@@ -18,10 +18,12 @@ interface AppState {
   error: string | null
   toasts: Toast[]
   events: any[]
+  joinCode: string | null
 }
 
 type Action =
   | { type: 'SESSION'; session: Session | null }
+  | { type: 'JOIN_CODE'; code: string | null }
   | { type: 'VIEW'; view: View }
   | { type: 'STATE'; state: GameState | null }
   | { type: 'GAMEDATA'; data: GameData }
@@ -43,29 +45,47 @@ function writeSessions(sessions: Session[]) {
   try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, 12))) } catch { /* ignore */ }
 }
 
-const urlSession: Session | null = (() => {
+const urlInfo = (() => {
   try {
     const p = new URLSearchParams(window.location.search)
-    const code = p.get('code')
-    const token = p.get('token')
-    if (!code || !token) return null
-    const session: Session = {
-      code: code.toUpperCase(), playerId: token,
-      name: p.get('name') || 'Manager',
-      avatar: p.get('avatar') || '🏏',
-      color: p.get('color') || '#c8a24b',
+    return {
+      code: p.get('code'),
+      token: p.get('token'),
+      // Old invite links carried the host's token and name. A link with a
+      // name, or an explicit join flag, is always an invitation, never a
+      // login for the person who opens it.
+      invite: p.get('join') === '1' || Boolean(p.get('name')),
     }
-    const all = readSessions().filter(s => s.code !== session.code)
-    writeSessions([session, ...all])
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    return session
-  } catch { return null }
+  } catch { return { code: null, token: null, invite: false } }
 })()
 
+const urlSession: Session | null = (() => {
+  const { code, token, invite } = urlInfo
+  if (!code || !token || invite) return null
+  const session: Session = {
+    code: code.toUpperCase(), playerId: token,
+    name: 'Manager', avatar: '🏏', color: '#c8a24b',
+  }
+  const all = readSessions().filter(s => s.code !== session.code)
+  writeSessions([session, ...all])
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  return session
+})()
+
+// An invitation opens the Join form instead of reusing the sender's session.
+const urlJoinCode: string | null = urlInfo.code && (urlInfo.invite || !urlInfo.token)
+  ? urlInfo.code.toUpperCase()
+  : null
+
+const storedSession: Session | null = (() => {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') } catch { return null }
+})()
+if (urlJoinCode) {
+  try { localStorage.removeItem(SESSION_KEY) } catch { /* ignore */ }
+}
+
 const initial: AppState = {
-  session: urlSession || (() => {
-    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') } catch { return null }
-  })(),
+  session: urlSession || (urlJoinCode ? null : storedSession),
   sessions: readSessions(),
   view: urlSession ? 'board' : 'landing',
   state: null,
@@ -76,6 +96,7 @@ const initial: AppState = {
   error: null,
   toasts: [],
   events: [],
+  joinCode: urlJoinCode,
 }
 
 let toastId = 1
@@ -112,6 +133,7 @@ function reducer(state: AppState, action: Action): AppState {
       localStorage.removeItem(SESSION_KEY)
       return { ...state, session: null }
     }
+    case 'JOIN_CODE': return { ...state, joinCode: action.code }
     case 'VIEW': return { ...state, view: action.view, error: null }
     case 'STATE': {
       const s = action.state as any
@@ -159,6 +181,7 @@ interface Ctx {
   quick: (body: CreateRoomBody) => Promise<void>
   continueRoom: (row: SavedRoom) => Promise<void>
   refreshSaved: () => Promise<void>
+  joinCode: string | null
 }
 
 const StoreContext = createContext<Ctx | null>(null)
@@ -230,12 +253,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const enterRoom = async (result: { code: string; player_id: string; state: any }) => {
+  const enterRoom = async (
+    result: { code: string; player_id: string; state: any },
+    identity?: { name: string; avatar: string; color: string },
+  ) => {
     const session: Session = {
       code: result.code, playerId: result.player_id,
-      name: app.session?.name || 'Manager',
-      avatar: app.session?.avatar || '🏏',
-      color: app.session?.color || '#c8a24b',
+      name: identity?.name || app.session?.name || 'Manager',
+      avatar: identity?.avatar || app.session?.avatar || '🏏',
+      color: identity?.color || app.session?.color || '#c8a24b',
     }
     dispatch({ type: 'STATE', state: result.state })
     setSession(session)
@@ -247,21 +273,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const create = async (body: CreateRoomBody) => {
     dispatch({ type: 'BUSY', busy: true })
-    try { await enterRoom(await api.createRoom(body)) }
+    try { await enterRoom(await api.createRoom(body), body) }
     catch (e: any) { dispatch({ type: 'ERROR', error: e.message }) }
     finally { dispatch({ type: 'BUSY', busy: false }) }
   }
 
   const join = async (code: string, name: string, avatar: string, color: string) => {
     dispatch({ type: 'BUSY', busy: true })
-    try { await enterRoom(await api.joinRoom(code.trim().toUpperCase(), name, avatar, color)) }
+    try { await enterRoom(await api.joinRoom(code.trim().toUpperCase(), name, avatar, color), { name, avatar, color }) }
     catch (e: any) { dispatch({ type: 'ERROR', error: e.message }) }
     finally { dispatch({ type: 'BUSY', busy: false }) }
   }
 
   const quick = async (body: CreateRoomBody) => {
     dispatch({ type: 'BUSY', busy: true })
-    try { await enterRoom(await api.quickMatch(body)) }
+    try { await enterRoom(await api.quickMatch(body), body) }
     catch (e: any) { dispatch({ type: 'ERROR', error: e.message }) }
     finally { dispatch({ type: 'BUSY', busy: false }) }
   }
@@ -299,6 +325,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({
     app, dispatch, send, connect, disconnect, setSession,
     create, join, quick, continueRoom, refreshSaved,
+    joinCode: app.joinCode,
   }), [app])
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

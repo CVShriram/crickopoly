@@ -18,12 +18,12 @@ const DEFAULTS = {
 }
 
 export function Landing() {
-  const { app, create, join, quick, continueRoom, dispatch, refreshSaved } = useApp()
-  const [tab, setTab] = useState<'new' | 'join' | 'quick'>('new')
+  const { app, create, join, quick, continueRoom, dispatch, refreshSaved, joinCode } = useApp()
+  const [tab, setTab] = useState<'new' | 'join' | 'quick'>(() => joinCode ? 'join' : 'new')
   const [name, setName] = useState(() => localStorage.getItem('fg-name') || 'Manager')
   const [avatar, setAvatar] = useState(() => localStorage.getItem('fg-avatar') || '🦁')
   const [color, setColor] = useState(() => localStorage.getItem('fg-color') || '#c8a24b')
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(() => joinCode || '')
   const [settings, setSettings] = useState(DEFAULTS)
 
   const profile = { name: name.trim() || 'Manager', avatar, color }
@@ -31,6 +31,17 @@ export function Landing() {
     localStorage.setItem('fg-name', profile.name)
     localStorage.setItem('fg-avatar', avatar)
     localStorage.setItem('fg-color', color)
+  }
+
+  const switchTab = (next: 'new' | 'join' | 'quick') => {
+    setTab(next)
+    if (joinCode) dispatch({ type: 'JOIN_CODE', code: null })
+  }
+
+  const submitJoin = () => {
+    saveProfile()
+    join(code.trim().toUpperCase(), profile.name, avatar, color)
+    dispatch({ type: 'JOIN_CODE', code: null })
   }
 
   const submitCreate = () => {
@@ -87,9 +98,9 @@ export function Landing() {
             <input value={name} maxLength={24} onChange={e => setName(e.target.value)} placeholder="Your franchise name" />
           </label>
           <div className="tabs compact">
-            <button className={tab === 'new' ? 'active' : ''} onClick={() => setTab('new')}>New room</button>
-            <button className={tab === 'join' ? 'active' : ''} onClick={() => setTab('join')}>Join code</button>
-            <button className={tab === 'quick' ? 'active' : ''} onClick={() => setTab('quick')}>Quick play</button>
+            <button className={tab === 'new' ? 'active' : ''} onClick={() => switchTab('new')}>New room</button>
+            <button className={tab === 'join' ? 'active' : ''} onClick={() => switchTab('join')}>Join code</button>
+            <button className={tab === 'quick' ? 'active' : ''} onClick={() => switchTab('quick')}>Quick play</button>
           </div>
 
           {tab === 'new' && (
@@ -133,11 +144,19 @@ export function Landing() {
           )}
 
           {tab === 'join' && (
-            <label className="field">
-              <span>Room code</span>
-              <input className="code-input" value={code} maxLength={8} placeholder="ABCDE"
-                onChange={e => setCode(e.target.value.toUpperCase())} />
-            </label>
+            <>
+              {joinCode && (
+                <div className="callout">
+                  <strong>Invite link opened</strong>
+                  <p>Enter your own manager name below. You will join as a new franchise, not as the host.</p>
+                </div>
+              )}
+              <label className="field">
+                <span>Room code</span>
+                <input className="code-input" value={code} maxLength={8} placeholder="ABCDE"
+                  onChange={e => setCode(e.target.value.toUpperCase())} />
+              </label>
+            </>
           )}
 
           {tab === 'quick' && (
@@ -149,7 +168,7 @@ export function Landing() {
 
           <div className="button-row">
             {tab === 'new' && <Button onClick={submitCreate} disabled={app.busy}>Create room →</Button>}
-            {tab === 'join' && <Button onClick={() => { saveProfile(); join(code, profile.name, avatar, color) }}
+            {tab === 'join' && <Button onClick={submitJoin}
               disabled={app.busy || code.trim().length < 4}>Join room →</Button>}
             {tab === 'quick' && <Button onClick={() => { saveProfile(); quick({ ...profile, settings: { ...DEFAULTS, max_players: 3 } }) }}
               disabled={app.busy}>Start quick play →</Button>}

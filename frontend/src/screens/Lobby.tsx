@@ -18,7 +18,8 @@ export function Lobby() {
 
   const patch = (settings: Record<string, unknown>) => send('settings', { settings })
   const share = () => {
-    const url = `${window.location.origin}${window.location.pathname}?code=${lobby.code}&token=${app.session?.playerId}&name=${encodeURIComponent(meMember?.name || 'Manager')}&avatar=${encodeURIComponent(meMember?.avatar || '🏏')}&color=${encodeURIComponent(meMember?.color || '#c8a24b')}`
+    // Share only the room code. Never put the host token in an invite link.
+    const url = `${window.location.origin}${window.location.pathname}?code=${lobby.code}&join=1`
     navigator.clipboard?.writeText(url).then(() => {
       setCopied(true); window.setTimeout(() => setCopied(false), 1800)
     }).catch(() => dispatch({ type: 'ERROR', error: url }))
