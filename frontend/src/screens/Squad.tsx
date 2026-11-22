@@ -7,7 +7,7 @@ import { conditionOf, effective, money, roleClass, titleCase } from '../utils'
 export function Squad() {
   const { app, send } = useApp()
   const state = app.state!
-  const f = state.you ? state.franchises[state.you] : undefined
+  const f = state.you ? state.franchises?.[state.you] : undefined
   const [xi, setXi] = useState<string[]>(f?.xi || [])
   const [captain, setCaptain] = useState<string | null>(f?.captain || null)
   const [vice, setVice] = useState<string | null>(f?.vice || null)

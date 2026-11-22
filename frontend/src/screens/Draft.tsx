@@ -16,8 +16,8 @@ export function Draft() {
 
   const taken = useMemo(() => new Set(Object.values(state.franchises).flatMap(f => Object.keys(f.squad))), [state.franchises])
   const counts = useMemo(() => Object.fromEntries(Object.values(state.franchises).map(f => [f.id, Object.keys(f.squad).length])), [state.franchises])
-  const current = state.current_player_id ? state.franchises[state.current_player_id] : undefined
-  const myF = state.you ? state.franchises[state.you] : undefined
+  const current = state.current_player_id ? state.franchises?.[state.current_player_id] : undefined
+  const myF = state.you ? state.franchises?.[state.you] : undefined
   const myTurn = state.current_player_id === state.you
   const myBalance = myF?.balance || 0
 

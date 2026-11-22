@@ -6,7 +6,7 @@ import { money } from '../utils'
 export function Results() {
   const { app, send, dispatch, refreshSaved } = useApp()
   const state = app.state!
-  const champion = state.winner_id ? state.franchises[state.winner_id] : undefined
+  const champion = state.winner_id ? state.franchises?.[state.winner_id] : undefined
   const finals = state.final_points || []
   const isHost = state.host_id === app.session?.playerId
 

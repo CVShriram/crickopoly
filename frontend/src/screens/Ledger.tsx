@@ -50,7 +50,7 @@ export function Ledger() {
             <thead><tr><th>ID</th><th>Round</th><th>Franchise</th><th>Type</th><th>Description</th><th>Amount</th><th>Balance after</th><th>Time</th></tr></thead>
             <tbody>{rows.map(t => <tr key={t.id}>
               <td><small>{t.id}</small></td><td>R{t.round}</td>
-              <td>{state.franchises[t.franchise_id || t.fid]?.name || '—'}</td>
+              <td>{state.franchises?.[t.franchise_id || t.fid]?.name || '—'}</td>
               <td><Badge tone={t.amount > 0 ? 'green' : 'danger'}>{titleCase(t.kind || t.type || 'transfer')}</Badge></td>
               <td>{t.desc || t.description}</td>
               <td className={t.amount > 0 ? 'positive' : 'negative'}>{signed(t.amount)}</td>

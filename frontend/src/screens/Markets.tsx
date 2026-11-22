@@ -10,7 +10,7 @@ const emptyBundle = (): Bundle => ({ players: [], stadiums: [], sponsors: [], ca
 export function Markets() {
   const { app, send } = useApp()
   const state = app.state!
-  const f = state.you ? state.franchises[state.you] : undefined
+  const f = state.you ? state.franchises?.[state.you] : undefined
   const [tab, setTab] = useState('portfolio')
   const [to, setTo] = useState('')
   const [give, setGive] = useState<Bundle>(emptyBundle())
@@ -24,7 +24,7 @@ export function Markets() {
   const history = offers.filter(t => t.status !== 'pending')
   const windowInfo = state.transfer_window
   const rivals = Object.values(state.franchises).filter(x => x.id !== state.you)
-  const target: Franchise | undefined = state.franchises[to]
+  const target: Franchise | undefined = state.franchises?.[to]
   const ownerMarkets = (state.board || []).filter(t => t.kind === 'market' && state.ownership?.[String(t.position)] === state.you)
   const ownerVenues = (state.board || []).filter(t => t.kind === 'stadium' && state.ownership?.[String(t.position)] === state.you)
   const sponsorRows = (state.gamedata?.sponsors || []).map((s: any) => ({ ...s, signed: f?.sponsors?.includes(s.id) }))
@@ -225,7 +225,7 @@ function TradeRow({ trade, state, onAccept, onReject, onCancel }: {
   return (
     <div className="trade-row">
       <div className="trade-head">
-        <strong>{state.franchises[trade.from]?.name} → {state.franchises[trade.to]?.name}</strong>
+        <strong>{state.franchises?.[trade.from]?.name} → {state.franchises?.[trade.to]?.name}</strong>
         <Badge tone={trade.status === 'executed' ? 'green' : trade.status === 'pending' ? 'gold' : 'default'}>{trade.status.toUpperCase()}</Badge>
       </div>
       {trade.message && <p className="trade-message">“{trade.message}”</p>}

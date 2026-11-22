@@ -28,6 +28,23 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('Crickopoly UI error', error, info)
+    // A bad saved session must never trap the manager in an error loop.
+    // Clear only local pointers; the room itself stays safe on the server.
+    try {
+      localStorage.removeItem('fg-session')
+      localStorage.removeItem('fg-sessions')
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('fg-tile-intro-')) sessionStorage.removeItem(key)
+      })
+    } catch { /* storage unavailable */ }
+  }
+
+  private recover = () => {
+    try {
+      localStorage.removeItem('fg-session')
+      localStorage.removeItem('fg-sessions')
+    } catch { /* storage unavailable */ }
+    window.location.assign(window.location.pathname)
   }
 
   render() {
@@ -38,11 +55,24 @@ class ErrorBoundary extends React.Component<
           <div>
             <h1 style={{ margin: '0 0 8px' }}>Something went wrong</h1>
             <p style={{ opacity: .75, maxWidth: 520 }}>{this.state.error.message}</p>
-            <button type="button" onClick={() => window.location.reload()}
-              style={{ marginTop: 16, padding: '10px 18px', borderRadius: 10, border: '1px solid #c8a24b',
-                background: '#c8a24b', color: '#08131d', fontWeight: 700, cursor: 'pointer' }}>
-              Reload game
-            </button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 16 }}>
+              <button type="button" onClick={this.recover}
+                style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid #c8a24b',
+                  background: '#c8a24b', color: '#08131d', fontWeight: 700, cursor: 'pointer' }}>
+                Back to saved games
+              </button>
+              <button type="button" onClick={() => window.location.reload()}
+                style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid #35546b',
+                  background: 'transparent', color: '#e8eef3', fontWeight: 700, cursor: 'pointer' }}>
+                Reload game
+              </button>
+            </div>
+            <details style={{ marginTop: 18, maxWidth: 560, textAlign: 'left', opacity: .6 }}>
+              <summary style={{ cursor: 'pointer' }}>Error details</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, maxHeight: 160, overflow: 'auto' }}>
+                {this.state.error.stack || this.state.error.message}
+              </pre>
+            </details>
           </div>
         </div>
       )
@@ -54,7 +84,9 @@ class ErrorBoundary extends React.Component<
 export default function App() {
   const { app, dispatch } = useApp()
   const started = Boolean(app.state?.started)
-  const view = started || app.view === 'howto' ? app.view : 'landing'
+  const view = started || app.view === 'howto' || app.view === 'lobby'
+    ? app.view
+    : 'landing'
 
   let screen: React.ReactNode
   switch (view) {

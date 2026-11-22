@@ -11,7 +11,7 @@ const defaultPlan = (): Plan => Object.fromEntries(PHASES.map(p => [p, { bat: 'b
 export function Match() {
   const { app, send, dispatch } = useApp()
   const state = app.state!
-  const f = state.you ? state.franchises[state.you] : undefined
+  const f = state.you ? state.franchises?.[state.you] : undefined
   const [opponent, setOpponent] = useState('')
   const [plan, setPlan] = useState<Plan>(defaultPlan())
   const [card, setCard] = useState('')
@@ -55,7 +55,7 @@ export function Match() {
           action={<Badge tone={mySubmitted ? 'green' : 'gold'}>{mySubmitted ? 'PLAN LOCKED' : 'AWAITING YOUR PLAN'}</Badge>}>
           <div className="matchup-bar">
             {participants.map((id, i) => {
-              const fr = state.franchises[id]
+              const fr = state.franchises?.[id]
               const isSubmitted = submitted.includes(id)
               return <React.Fragment key={id}>
                 {i > 0 && <span className="versus">VS</span>}
@@ -144,10 +144,10 @@ export function Match() {
         <Panel title="Latest result" subtitle={`${result.id} · round ${result.round} · seed ${result.seed}`} icon="📊"
           action={<Badge tone="gold">{result.playoff_stage || 'League'}</Badge>}>
           <div className="scoreboard">
-            <div className="score-team"><span>{state.franchises[result.a]?.avatar}</span><strong>{result.a_name}</strong>
+            <div className="score-team"><span>{state.franchises?.[result.a]?.avatar}</span><strong>{result.a_name}</strong>
               <h2>{result.a_runs}/{result.a_wickets}</h2><small>{result.a_runs === result.b_runs ? 'Tie' : result.winner === result.a ? 'Won' : 'Lost'}</small></div>
             <div className="score-mid"><span>VS</span><p>{result.winner_name || 'Tie'}</p></div>
-            <div className="score-team"><span>{state.franchises[result.b]?.avatar}</span><strong>{result.b_name}</strong>
+            <div className="score-team"><span>{state.franchises?.[result.b]?.avatar}</span><strong>{result.b_name}</strong>
               <h2>{result.b_runs}/{result.b_wickets}</h2><small>{result.winner === result.b ? 'Won' : result.a_runs === result.b_runs ? 'Tie' : 'Lost'}</small></div>
           </div>
           <div className="phase-summary">

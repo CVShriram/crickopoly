@@ -268,4 +268,4 @@ export const playerById = (state: GameState | null, id: string | null | undefine
 }
 
 export const me = (state: GameState | null): Franchise | undefined =>
-  state?.you ? state.franchises[state.you] : undefined
+  state?.you && state.franchises ? state.franchises[state.you] : undefined

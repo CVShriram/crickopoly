@@ -14,8 +14,8 @@ function tileGridPosition(pos: number): { gridRow: number; gridColumn: number } 
 export function Board() {
   const { app, send, dispatch } = useApp()
   const state = app.state!
-  const myF = state.you ? state.franchises[state.you] : undefined
-  const current = state.current_player_id ? state.franchises[state.current_player_id] : undefined
+  const myF = state.you ? state.franchises?.[state.you] : undefined
+  const current = state.current_player_id ? state.franchises?.[state.current_player_id] : undefined
   const myTurn = isMyTurn(state)
   const blocked = Boolean(state.pending || state.auction)
   const currentTile = myF ? state.board?.[myF.pos] : undefined
@@ -108,7 +108,7 @@ export function Board() {
             <div className="board-grid">
               {(state.board || []).map(t => {
                 const ownerId = owned(t.position)
-                const owner = ownerId ? state.franchises[ownerId] : undefined
+                const owner = ownerId ? state.franchises?.[ownerId] : undefined
                 const isMe = ownerId === state.you
                 const here = myF?.pos === t.position
                 const active = current?.pos === t.position

@@ -6,7 +6,7 @@ import { money, playerLabel, timeAgo } from '../utils'
 export function Auctions() {
   const { app, send } = useApp()
   const state = app.state!
-  const f = state.you ? state.franchises[state.you] : undefined
+  const f = state.you ? state.franchises?.[state.you] : undefined
   const auction = state.auction
   const [amount, setAmount] = useState(0)
   const [candidate, setCandidate] = useState('')
@@ -16,7 +16,7 @@ export function Auctions() {
   const currentPlayer = auction?.players?.[auction.index || 0]
   const player = state.gamedata?.players?.find(p => p.id === currentPlayer)
   const minBid = auction ? (auction.highest_bidder ? auction.current_bid + 10 : auction.base_price) : 0
-  const highest = auction?.highest_bidder ? state.franchises[auction.highest_bidder] : undefined
+  const highest = auction?.highest_bidder ? state.franchises?.[auction.highest_bidder] : undefined
   const passed = Boolean(auction?.passed?.includes(state.you))
   const alreadyHighest = auction?.highest_bidder === state.you
   const squadCap = state.gamedata?.rules?.squad_capacity || 15
@@ -94,7 +94,7 @@ export function Auctions() {
             <div className="bid-history">
               <h3>Bid history</h3>
               {auction.bids.length === 0 ? <Empty title="No bids yet" /> : [...auction.bids].reverse().map((b: any, i: number) => (
-                <div key={i} className="bid-row"><span>{state.franchises[b.fid]?.avatar} {state.franchises[b.fid]?.name}</span>
+                <div key={i} className="bid-row"><span>{state.franchises?.[b.fid]?.avatar} {state.franchises?.[b.fid]?.name}</span>
                   <strong>{money(b.amount)}</strong><small>{timeAgo(b.ts)}</small></div>
               ))}
             </div>
@@ -103,7 +103,7 @@ export function Auctions() {
           <Panel title="Participants" subtitle="Passed managers cannot re-enter this lot" icon="👥">
             <div className="participant-list">
               {auction.participants.map((id: string) => {
-                const fr = state.franchises[id]
+                const fr = state.franchises?.[id]
                 const isPassed = auction.passed.includes(id)
                 return <div key={id} className={`participant ${isPassed ? 'passed' : ''}`}>
                   <span style={{ background: fr?.color }}>{fr?.avatar}</span>

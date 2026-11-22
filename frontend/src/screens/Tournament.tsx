@@ -9,7 +9,7 @@ export function Tournament() {
   const rows = state.standings || []
   const bracket = state.playoff_bracket
   const finals = state.final_points || []
-  const champion = state.winner_id ? state.franchises[state.winner_id] : undefined
+  const champion = state.winner_id ? state.franchises?.[state.winner_id] : undefined
   const leader = rows[0]
 
   return (
@@ -56,12 +56,12 @@ export function Tournament() {
             <div className="bracket">
               {bracket.semis?.length > 0 && <div className="bracket-round"><h4>Semi-finals</h4>
                 {bracket.semis.map((pair: string[], i: number) => <div key={i} className="bracket-pair">
-                  {pair.map(id => <span key={id || i}>{id ? state.franchises[id]?.name : 'TBD'}</span>)}
+                  {pair.map(id => <span key={id || i}>{id ? state.franchises?.[id]?.name : 'TBD'}</span>)}
                 </div>)}
               </div>}
               {bracket.final?.length > 0 && <div className="bracket-round final"><h4>Final</h4>
                 <div className="bracket-pair">{bracket.final.map((id: string | null, i: number) =>
-                  <span key={i}>{id ? state.franchises[id]?.name : 'TBD'}</span>)}</div>
+                  <span key={i}>{id ? state.franchises?.[id]?.name : 'TBD'}</span>)}</div>
               </div>}
             </div>
           )}
