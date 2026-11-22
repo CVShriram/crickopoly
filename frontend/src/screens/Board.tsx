@@ -14,13 +14,25 @@ function tileGridPosition(pos: number): { gridRow: number; gridColumn: number } 
 export function Board() {
   const { app, send, dispatch } = useApp()
   const state = app.state!
-  const [inspect, setInspect] = useState<Tile | null>(null)
   const myF = state.you ? state.franchises[state.you] : undefined
   const current = state.current_player_id ? state.franchises[state.current_player_id] : undefined
   const myTurn = isMyTurn(state)
   const blocked = Boolean(state.pending || state.auction)
   const currentTile = myF ? state.board?.[myF.pos] : undefined
-  const tile = inspect || currentTile
+
+  // Show the season-start tile once when a manager first reaches the board,
+  // then honour the close button permanently for this room.
+  const introKey = `fg-tile-intro-${state.code}`
+  const [inspect, setInspect] = useState<Tile | null>(() => {
+    try {
+      if (currentTile && !sessionStorage.getItem(introKey)) return currentTile
+    } catch { /* storage unavailable */ }
+    return null
+  })
+  const closeInspect = () => {
+    setInspect(null)
+    try { sessionStorage.setItem(introKey, '1') } catch { /* storage unavailable */ }
+  }
 
   const pending = state.pending
   const canRoll = myTurn && !blocked && !state.finished
@@ -154,28 +166,31 @@ export function Board() {
         </aside>
       </div>
 
-      {tile && (
-        <Modal title={`Tile ${tile.position} · ${tile.name}`} subtitle={boardKindLabel(tile.kind)} onClose={() => setInspect(null)}>
+      {inspect && (
+        <Modal title={`Tile ${inspect.position} · ${inspect.name}`} subtitle={boardKindLabel(inspect.kind)} onClose={closeInspect}>
           <div className="tile-inspect">
-            <div className="inspect-icon">{tile.icon}</div>
+            <div className="inspect-icon">{inspect.icon}</div>
             <div className="inspect-body">
-              <p>{tile.desc}</p>
+              <p>{inspect.desc}</p>
               <div className="inspect-grid">
-                <span>Owner <strong>{ownerName(state, owned(tile.position))}</strong></span>
-                {tile.price && <span>Purchase <strong>{money(tile.price)}</strong></span>}
-                {tile.landing_fee && <span>Landing fee <strong>{money(tile.landing_fee)}</strong></span>}
-                {tile.match_revenue && <span>Round revenue <strong>{money(tile.match_revenue)}</strong></span>}
-                {tile.pitch && <span>Pitch <strong>{state.gamedata?.pitches?.[tile.pitch]?.name || tile.pitch}</strong></span>}
-                {tile.country && <span>Market <strong>{state.gamedata?.countries?.[tile.country]?.name || tile.country}</strong></span>}
-                {tile.role && <span>Role <strong>{state.gamedata?.role_labels?.[tile.role] || tile.role}</strong></span>}
+                <span>Owner <strong>{ownerName(state, owned(inspect.position))}</strong></span>
+                {inspect.price && <span>Purchase <strong>{money(inspect.price)}</strong></span>}
+                {inspect.landing_fee && <span>Landing fee <strong>{money(inspect.landing_fee)}</strong></span>}
+                {inspect.match_revenue && <span>Round revenue <strong>{money(inspect.match_revenue)}</strong></span>}
+                {inspect.pitch && <span>Pitch <strong>{state.gamedata?.pitches?.[inspect.pitch]?.name || inspect.pitch}</strong></span>}
+                {inspect.country && <span>Market <strong>{state.gamedata?.countries?.[inspect.country]?.name || inspect.country}</strong></span>}
+                {inspect.role && <span>Role <strong>{state.gamedata?.role_labels?.[inspect.role] || inspect.role}</strong></span>}
               </div>
-              {tile.kind === 'event' && <div className="callout"><strong>Special tile</strong><p>{tile.desc}</p></div>}
-              {pendingPurchase?.position === tile.position && (
-                <div className="button-row">
-                  <Button variant="success" onClick={() => { send('buy_market', { pos: tile.position }); setInspect(null) }}>Buy for {money(tile.price)}</Button>
-                  <Button variant="subtle" onClick={() => { send('skip', {}); setInspect(null) }}>Pass</Button>
-                </div>
-              )}
+              {inspect.kind === 'event' && <div className="callout"><strong>Special tile</strong><p>{inspect.desc}</p></div>}
+              <div className="button-row">
+                {pendingPurchase?.position === inspect.position && (
+                  <>
+                    <Button variant="success" onClick={() => { send('buy_market', { pos: inspect.position }); closeInspect() }}>Buy for {money(inspect.price)}</Button>
+                    <Button variant="subtle" onClick={() => { send('skip', {}); closeInspect() }}>Pass</Button>
+                  </>
+                )}
+                <Button variant="subtle" onClick={closeInspect}>Close</Button>
+              </div>
             </div>
           </div>
         </Modal>
