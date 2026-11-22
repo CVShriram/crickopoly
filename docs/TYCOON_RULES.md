@@ -1,4 +1,6 @@
-# Crickopoly: Stadium Tycoon — rebuilt rules
+# Crickopoly: Stadium Tycoon — legacy ruleset 2
+
+> Superseded by `docs/CARD_BATTLE_RULES.md` (ruleset 3). Kept only as a record of the previous build.
 
 Replaces the old draft/economy/tournament rules. Keeps the existing real-cricketer roster, 52-tile board, 8 stadiums, 2–6 managers, rooms, sockets and save table. New rooms use ruleset 2.
 

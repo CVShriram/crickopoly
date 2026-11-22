@@ -1,5 +1,5 @@
 import { useApp } from './store'
-import { GameScreen } from './components/GameScreen'
+import { BattleScreen } from './components/BattleScreen'
 import { Toasts } from './components/Toasts'
 import React from 'react'
 
@@ -73,7 +73,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <>
-        <GameScreen />
+        <BattleScreen />
         <Toasts />
         {app.error && (
           <div className="error-banner" onClick={() => dispatch({ type: 'ERROR', error: null })}>

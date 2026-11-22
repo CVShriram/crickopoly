@@ -412,6 +412,122 @@ export interface TycoonLobby {
   gamedata: GameData
 }
 
+/* ------------------------------------------------------------------------- *
+ * Cricket Card Battle (ruleset 3) — additive view types.
+ * Nothing above is removed: legacy screens keep their original contracts.
+ * Fields that are masked or not always present are optional here.
+ * ------------------------------------------------------------------------- */
+
+export interface BattleFranchise {
+  id: string
+  name: string
+  avatar: string
+  color: string
+  is_bot?: boolean
+  is_host?: boolean
+  hand: string[]
+  points: number
+  total_score: number
+  played: number
+}
+
+export interface BattlePlay {
+  player_id: string
+  tactic_id: string
+}
+
+export interface BattleResultRow {
+  pid: string
+  name: string
+  avatar?: string
+  color?: string
+  runs: number
+  wickets: number
+  score: number
+  player_id: string
+  tactic_id: string
+  won?: boolean
+}
+
+export interface BattleResult {
+  round: number
+  pitch: string
+  rows: BattleResultRow[]
+  winner_id: string | null
+}
+
+export interface BattleTactic {
+  id: string
+  name: string
+  icon?: string
+  desc?: string
+  phase?: string
+  kind?: string
+  run_mod?: number
+  bowl_mod?: number
+  risk?: number
+  wicket_mod?: number
+  pitch?: string
+  pitch_run?: number
+  pitch_wicket?: number
+  [key: string]: any
+}
+
+export interface BattleStanding {
+  id: string
+  name: string
+  avatar?: string
+  color: string
+  points: number
+  total_score: number
+  rank: number
+}
+
+export interface BattlePending {
+  type: string
+  viewers?: string[]
+  [key: string]: any
+}
+
+export interface BattleState {
+  room_id: string
+  code: string
+  host_id?: string
+  ruleset?: number
+  started: boolean
+  finished: boolean
+  phase: string
+  round: number
+  rounds?: number
+  current_player_id: string | null
+  order: string[]
+  pitch: string
+  settings?: Record<string, unknown>
+  franchises: Record<string, BattleFranchise>
+  plays?: Record<string, BattlePlay>
+  revealed?: boolean
+  pending: BattlePending | null
+  last_result: BattleResult | null
+  standings: BattleStanding[]
+  gamedata: GameData
+  you?: string
+  winner_id?: string | null
+}
+
+export interface BattleLobby {
+  room_id: string
+  code: string
+  host_id: string
+  phase: 'lobby'
+  started: false
+  finished?: boolean
+  ruleset?: number
+  members: LobbyMember[]
+  settings: Record<string, unknown>
+  you?: string
+  gamedata?: GameData
+}
+
 export type GameModal =
   | 'assets' | 'guide' | 'results' | 'history' | 'studio'
   | 'auction' | 'duel' | 'result' | 'market'
