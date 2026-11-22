@@ -1,4 +1,7 @@
-# Crickopoly: Auction + Tournament (ruleset 7)
+# Crickopoly: Auction + Tournament — legacy ruleset 7
+
+> Superseded by `docs/CRICKET_STRATEGY_MONOPOLY_RULES.md` (ruleset 8). Kept only as a record of the previous build.
+
 
 A fantasy cricket drafting game. No board, no rent, no property. Build a squad from real cricketers, then win a short tournament.
 

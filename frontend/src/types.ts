@@ -916,3 +916,165 @@ export interface AuctionTournamentLobby {
   gamedata: AuctionTournamentGameData
   [key: string]: unknown
 }
+
+/* ------------------------------------------------------------------------- *
+ * Cricket Strategy League (ruleset 8) — additive view types.
+ * The legacy types above are intentionally untouched. These shapes describe
+ * the 52-square snapshot consumed by StrategyMonopolyScreen, including the
+ * hidden-selection cricket contest and the no-money property trade offers.
+ * ------------------------------------------------------------------------- */
+
+export type StrategyShot = 'attack' | 'steady' | 'defend'
+export type StrategyPlan = 'yorker' | 'length' | 'spin'
+
+export interface StrategyContest {
+  visitor: string
+  owner: string
+  tile_id: number | string
+  role?: string
+  visitor_shot?: StrategyShot | string | null
+  owner_plan?: StrategyPlan | string | null
+  visitor_bat?: number
+  owner_bowl?: number
+  [key: string]: unknown
+}
+
+export interface StrategyLastContest {
+  visitor: string
+  owner: string
+  tile_id: number | string
+  role?: string
+  shot?: StrategyShot | string | null
+  plan?: StrategyPlan | string | null
+  runs?: number
+  wicket?: boolean | number
+  extra_runs?: number
+  skip?: boolean | number
+  text?: string
+  [key: string]: unknown
+}
+
+export interface StrategyProperty {
+  owner?: string | null
+  level?: number
+  price?: number
+  [key: string]: unknown
+}
+
+export interface StrategyFranchise {
+  id: string
+  name: string
+  avatar: string
+  color: string
+  is_bot?: boolean
+  is_host?: boolean
+  difficulty?: string
+  pos: number
+  fc: number
+  runs: number
+  wickets: number
+  max_wickets?: number
+  laps: number
+  squad: string[] | number
+  skipped?: number | boolean
+  injured?: number | boolean
+  owned?: Array<string | number> | number
+  out?: boolean
+  /** Upgrades unlock on BAT + BOWL + WK + a ground. */
+  unlocked?: boolean
+  /** Tile id of the first ground owned; pays the home-ground bonus. */
+  home_ground?: string | number | null
+  [key: string]: unknown
+}
+
+export interface StrategyPending {
+  type: 'buy' | 'auction' | 'trade' | string
+  pid?: string
+  tile_id?: number | string
+  price?: number
+  target?: string
+  give_tile?: number | string
+  take_tile?: number | string
+  player_id?: string
+  [key: string]: unknown
+}
+
+export interface StrategyStanding {
+  id: string
+  name: string
+  avatar?: string
+  color: string
+  runs: number
+  fc: number
+  wickets: number
+  laps: number
+  rank: number
+  pos?: number
+  [key: string]: unknown
+}
+
+export interface StrategyLastEvent {
+  type?: string
+  text?: string
+  [key: string]: unknown
+}
+
+export interface StrategyGameData {
+  players: PlayerData[]
+  countries: Record<string, { name?: string; flag?: string; color?: string; [key: string]: unknown }>
+  roles?: string[]
+  role_labels?: Record<string, string>
+  role_short?: Record<string, string>
+  rules?: Record<string, unknown>
+  board?: Tile[]
+  [key: string]: unknown
+}
+
+export interface StrategyState {
+  room_id?: string
+  code: string
+  host_id?: string
+  ruleset?: number
+  started: boolean
+  finished: boolean
+  phase: 'roll' | 'contest' | 'over' | 'lobby' | string
+  turn: number
+  laps?: number
+  order: string[]
+  turn_index?: number
+  current_player_id: string | null
+  dice: number[]
+  rolled?: boolean
+  pending: StrategyPending | null
+  contest: StrategyContest | null
+  last_contest: StrategyLastContest | null
+  board: Tile[]
+  properties: Record<string, StrategyProperty>
+  franchises: Record<string, StrategyFranchise>
+  last_event?: StrategyLastEvent | null
+  standings: StrategyStanding[]
+  gamedata?: StrategyGameData
+  settings?: Record<string, unknown>
+  data_overrides?: Record<string, unknown>
+  log?: Array<{ text?: string; type?: string; kind?: string; [key: string]: unknown }>
+  events?: Array<{ text?: string; type?: string; [key: string]: unknown }>
+  winner_id?: string | null
+  you?: string
+  members?: LobbyMember[]
+  [key: string]: unknown
+}
+
+export interface StrategyLobby {
+  room_id?: string
+  code: string
+  host_id: string
+  phase: 'lobby'
+  started: false
+  finished?: boolean
+  ruleset?: number
+  members: LobbyMember[]
+  settings: Record<string, unknown>
+  you?: string
+  gamedata?: StrategyGameData
+  [key: string]: unknown
+}

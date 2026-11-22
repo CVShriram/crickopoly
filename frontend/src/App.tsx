@@ -1,5 +1,5 @@
 import { useApp } from './store'
-import { AuctionTournamentScreen } from './components/AuctionTournamentScreen'
+import { StrategyMonopolyScreen } from './components/StrategyMonopolyScreen'
 import { Toasts } from './components/Toasts'
 import React from 'react'
 
@@ -73,7 +73,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <>
-        <AuctionTournamentScreen />
+        <StrategyMonopolyScreen />
         <Toasts />
         {app.error && (
           <div className="error-banner" onClick={() => dispatch({ type: 'ERROR', error: null })}>
