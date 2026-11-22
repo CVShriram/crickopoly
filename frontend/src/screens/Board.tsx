@@ -55,6 +55,20 @@ export function Board() {
 
   const roll = () => send('roll', { auto_buy: false })
 
+  // One clear action at a time, shown both in the board centre and in a
+  // sticky bar so a manager never has to scroll back up to roll again.
+  const stickyAction = !myTurn ? null
+    : canRoll ? 'roll'
+      : pendingPurchase ? 'buy'
+        : pending?.type === 'matchday' ? 'match'
+          : pending?.type === 'match_setup' ? 'tactics'
+            : state.auction ? 'auction' : null
+
+  const openMatch = () => dispatch({ type: 'VIEW', view: 'match' })
+  const openAuction = () => dispatch({ type: 'VIEW', view: 'auction' })
+  const buyCurrent = () => send('buy_market', { pos: pendingPurchase!.position })
+  const passCurrent = () => send('skip', {})
+
   return (
     <div className="page board-page">
       <div className="board-head">
@@ -64,27 +78,24 @@ export function Board() {
           <p>{myTurn ? 'You are on the clock. Roll the dice to advance.' : `${current?.name || 'Opponent'} is taking their turn.`}</p>
         </div>
         <div className="turn-actions">
-          {myTurn && !blocked && <Button variant="gold" onClick={roll} disabled={!canRoll}>🎲 Roll the dice</Button>}
-          {myTurn && pendingPurchase && (
-            <div className="purchase-prompt">
-              <span><strong>{pendingPurchase.name}</strong> is unowned — {money(pendingPurchase.price || 0)}</span>
-              <div>
-                <Button variant="success" small onClick={() => send('buy_market', { pos: pendingPurchase.position })}
-                  disabled={pendingPurchase.kind === 'stadium' ? false : (myF?.balance || 0) < (pendingPurchase.price || 0)}>
-                  Buy {pendingPurchase.kind === 'stadium' ? 'venue' : 'market'}
-                </Button>
-                <Button variant="subtle" small onClick={() => send('skip', {})}>Pass</Button>
-              </div>
-            </div>
-          )}
           {pending?.type === 'matchday' && (
-            <Button variant="gold" onClick={() => dispatch({ type: 'VIEW', view: 'match' })}>🏏 Open matchday</Button>
+            <Button variant="gold" onClick={openMatch}>🏏 Open matchday</Button>
           )}
           {pending?.type === 'match_setup' && (
-            <Button variant="gold" onClick={() => dispatch({ type: 'VIEW', view: 'match' })}>🛡️ Submit tactics</Button>
+            <Button variant="gold" onClick={openMatch}>🛡️ Submit tactics</Button>
           )}
-          {state.auction && <Button variant="danger" onClick={() => dispatch({ type: 'VIEW', view: 'auction' })}>🔨 Live auction</Button>}
+          {state.auction && <Button variant="danger" onClick={openAuction}>🔨 Live auction</Button>}
         </div>
+      </div>
+
+      <div className="quick-guide">
+        <span className="guide-title">🎯 HOW TO PLAY</span>
+        <span><b>1</b> Roll the dice</span>
+        <span><b>2</b> Look at the tile you land on</span>
+        <span><b>3</b> Buy or pass</span>
+        <span><b>4</b> Set your XI and play matches</span>
+        <button type="button" onClick={() => dispatch({ type: 'VIEW', view: 'howto' })}>Full guide →</button>
+        <small>Roll button stays in the centre and at the bottom — no scrolling needed.</small>
       </div>
 
       <div className="dashboard-strip">
@@ -132,6 +143,22 @@ export function Board() {
                   <span>{state.dice?.[0] || '–'}</span><span>{state.dice?.[1] || '–'}</span>
                 </div>
                 <p>{current ? <><span style={{ color: current.color }}>{current.avatar} {current.name}</span> to roll</> : 'Season starting'}</p>
+
+                {canRoll && (
+                  <Button variant="gold" className="center-roll" onClick={roll}>🎲 Roll dice</Button>
+                )}
+                {myTurn && pendingPurchase && (
+                  <div className="center-purchase">
+                    <span><strong>{pendingPurchase.name}</strong> · {money(pendingPurchase.price || 0)}</span>
+                    <div className="button-row">
+                      <Button variant="success" small onClick={buyCurrent}
+                        disabled={pendingPurchase.kind !== 'stadium' && (myF?.balance || 0) < (pendingPurchase.price || 0)}>
+                        Buy {pendingPurchase.kind === 'stadium' ? 'venue' : 'market'}
+                      </Button>
+                      <Button variant="subtle" small onClick={passCurrent}>Pass</Button>
+                    </div>
+                  </div>
+                )}
                 {currentTile && <button type="button" onClick={() => setInspect(currentTile)}>Inspect current tile →</button>}
               </div>
             </div>
@@ -165,6 +192,38 @@ export function Board() {
           </Panel>
         </aside>
       </div>
+
+      {myTurn && stickyAction && (
+        <div className="sticky-action" role="region" aria-label="Quick action">
+          <div className="sticky-action-copy">
+            <strong>
+              {stickyAction === 'roll' ? 'Your turn — roll the dice'
+                : stickyAction === 'buy' ? 'Tile purchase waiting'
+                  : stickyAction === 'match' ? 'Matchday is ready'
+                    : stickyAction === 'tactics' ? 'Submit your tactics'
+                      : 'Live auction needs you'}
+            </strong>
+            <small>
+              {stickyAction === 'roll'
+                ? 'Roll, look at the board, then roll again — this bar stays here.'
+                : 'Handle this action to continue the season.'}
+            </small>
+          </div>
+          <div className="sticky-action-buttons">
+            {stickyAction === 'roll' && <Button variant="gold" onClick={roll}>🎲 Roll dice</Button>}
+            {stickyAction === 'buy' && <>
+              <Button variant="success" onClick={buyCurrent}
+                disabled={pendingPurchase?.kind !== 'stadium' && (myF?.balance || 0) < (pendingPurchase?.price || 0)}>
+                Buy {pendingPurchase?.kind === 'stadium' ? 'venue' : 'market'}
+              </Button>
+              <Button variant="subtle" onClick={passCurrent}>Pass</Button>
+            </>}
+            {stickyAction === 'match' && <Button variant="gold" onClick={openMatch}>🏏 Open matchday</Button>}
+            {stickyAction === 'tactics' && <Button variant="gold" onClick={openMatch}>🛡️ Submit tactics</Button>}
+            {stickyAction === 'auction' && <Button variant="danger" onClick={openAuction}>🔨 Live auction</Button>}
+          </div>
+        </div>
+      )}
 
       {inspect && (
         <Modal title={`Tile ${inspect.position} · ${inspect.name}`} subtitle={boardKindLabel(inspect.kind)} onClose={closeInspect}>

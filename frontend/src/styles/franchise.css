@@ -363,8 +363,8 @@ small { color: var(--muted); }
 .mini-squad-row b { color: var(--gold); }
 
 /* ---------- board ---------- */
-.board-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }
-.turn-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.board-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.turn-actions { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .purchase-prompt { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; padding: 10px 13px; border-radius: 11px; background: rgba(212,175,95,.09); border: 1px solid var(--line-strong); }
 .purchase-prompt > span { font-size: 11px; }
 .purchase-prompt > div { display: flex; gap: 6px; }
@@ -398,6 +398,44 @@ small { color: var(--muted); }
 .dice-display span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 8px; background: linear-gradient(145deg, #e8eef3, #b8c8d6); color: #0a1c29; font-family: var(--font-display); font-size: 20px; font-weight: 800; box-shadow: 0 5px 12px rgba(0,0,0,.35); }
 .board-center p { margin: 0; font-size: 11px; color: var(--muted); }
 .board-center button { margin-top: 6px; background: transparent; border: 0; color: var(--gold); font-size: 11px; text-decoration: underline; }
+
+/* Keep the next action visible and the board easy to follow. */
+.board-page { padding-bottom: 86px; }
+.quick-guide {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(255,255,255,.03); font-size: 11px; color: var(--muted);
+}
+.quick-guide .guide-title { color: var(--gold); font-weight: 800; letter-spacing: .1em; }
+.quick-guide b {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 5px;
+  border-radius: 50%; background: rgba(212,175,95,.16); color: var(--gold-bright);
+  font-size: 10px; font-weight: 800;
+}
+.quick-guide button {
+  margin-left: auto; padding: 4px 8px; border-radius: 7px; border: 1px solid var(--line-strong);
+  background: transparent; color: var(--gold); font-size: 10px; font-weight: 700; cursor: pointer;
+}
+.quick-guide small { width: 100%; color: #6f8ba1; }
+.board-center { padding: 14px; }
+.board-center .center-roll {
+  margin-top: 10px; padding: 12px 24px; font-size: 14px; letter-spacing: .04em;
+}
+.center-purchase {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  width: 100%; margin-top: 8px; padding-top: 9px; border-top: 1px dashed var(--line-strong);
+  font-size: 10px; color: var(--muted);
+}
+.center-purchase .button-row { justify-content: center; }
+.sticky-action {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 150;
+  width: min(92vw, 760px); display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line-strong);
+  background: rgba(7,20,33,.95); box-shadow: 0 14px 40px rgba(0,0,0,.5); backdrop-filter: blur(10px);
+}
+.sticky-action-copy strong { display: block; color: #fff; font-size: 12px; }
+.sticky-action-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+.sticky-action-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .position-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .position-row strong { display: block; }
 .position-row small { display: block; font-size: 10px; }
@@ -660,6 +698,10 @@ small { color: var(--muted); }
   .board-grid { gap: 2px; }
   .board-tile .tile-name { display: none; }
   .board-center strong { font-size: 12px; }
+  .board-page { padding-bottom: 132px; }
+  .quick-guide button { margin-left: 0; }
+  .sticky-action { flex-direction: column; align-items: stretch; bottom: 10px; gap: 10px; }
+  .sticky-action-buttons { justify-content: center; }
   .admin-fields, .admin-fields.wide { grid-template-columns: repeat(2,1fr); }
   .toast-stack { width: calc(100% - 24px); right: 12px; }
   .trade-detail { grid-template-columns: 1fr; }

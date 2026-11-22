@@ -82,13 +82,13 @@ export function PlayerPortrait({ player, size = 'md', injured = false }: {
   )
 }
 
-export function Button({ children, onClick, variant = 'primary', disabled, title, small, block }: {
+export function Button({ children, onClick, variant = 'primary', disabled, title, small, block, className = '' }: {
   children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'ghost' | 'gold' | 'danger' | 'success' | 'subtle'
-  disabled?: boolean; title?: string; small?: boolean; block?: boolean
+  disabled?: boolean; title?: string; small?: boolean; block?: boolean; className?: string
 }) {
   return (
     <button
-      type="button" className={`btn btn-${variant} ${small ? 'btn-sm' : ''} ${block ? 'btn-block' : ''}`}
+      type="button" className={`btn btn-${variant} ${small ? 'btn-sm' : ''} ${block ? 'btn-block' : ''} ${className}`}
       onClick={onClick} disabled={disabled} title={title}
     >{children}</button>
   )
