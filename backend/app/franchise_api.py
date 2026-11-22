@@ -246,12 +246,26 @@ class FranchiseHub:
         self.connections: dict[str, dict[str, WebSocket]] = {}
 
     async def connect(self, room: FranchiseRoom, pid: str, ws: WebSocket) -> None:
+        # A manager may reconnect (or briefly open two sockets). Replace the
+        # previous socket deliberately so its later disconnect cannot remove
+        # the live one from the connection map.
+        previous = self.connections.get(room.id, {}).get(pid)
+        if previous is not None and previous is not ws:
+            try:
+                await previous.close(code=4001, reason="reconnected")
+            except Exception:
+                pass
         await ws.accept()
         self.connections.setdefault(room.id, {})[pid] = ws
         await self._send(ws, room, pid)
         await self.broadcast(room, exclude_pid=pid)
 
-    async def disconnect(self, room: FranchiseRoom, pid: str) -> None:
+    async def disconnect(self, room: FranchiseRoom, pid: str,
+                         ws: WebSocket | None = None) -> None:
+        current = self.connections.get(room.id, {}).get(pid)
+        if ws is not None and current is not None and current is not ws:
+            # A stale socket is closing after a newer one replaced it.
+            return
         self.connections.get(room.id, {}).pop(pid, None)
         if room.state:
             fdb.save(room.state, room.host_id, room.created_at)
@@ -301,7 +315,7 @@ class FranchiseHub:
                     fdb.save(room.state, room.host_id, room.created_at)
                 await self.broadcast(room, events)
         except WebSocketDisconnect:
-            await self.disconnect(room, pid)
+            await self.disconnect(room, pid, ws)
 
     def route(self, room: FranchiseRoom, pid: str, action: str, msg: dict) -> list[dict]:
         state = room.state

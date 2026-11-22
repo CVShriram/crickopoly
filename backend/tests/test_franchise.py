@@ -1043,3 +1043,39 @@ def test_api_human_buy_market_advances_the_turn():
     assert s.pending is None
     assert s.current_player_id == "f1"
 
+
+def test_websocket_reconnect_keeps_live_socket_registered():
+    """A stale socket closing must not evict the manager's newer socket.
+
+    The React store previously opened two sockets for one session. The first
+    socket's disconnect removed the second from the hub, so actions were saved
+    but no update was broadcast back to the browser.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import franchise_api
+    from app.main import app
+
+    with TestClient(app) as client:
+        created = client.post("/api/fg/rooms", json={
+            "name": "Socket QA", "avatar": "🏏", "color": "#c8a24b",
+        }).json()
+        code, token = created["code"], created["player_id"]
+        room = franchise_api.manager.by_code_get(code)
+        try:
+            url = f"/api/fg/ws?code={code}&token={token}"
+            with client.websocket_connect(url) as stale:
+                assert stale.receive_json()["type"] == "update"
+                with client.websocket_connect(url) as live:
+                    assert live.receive_json()["type"] == "update"
+                    # Connecting `live` closes `stale`; wait for that stale
+                    # disconnect handler to run, then prove `live` still gets
+                    # the next broadcast.
+                    live.send_json({"action": "ping"})
+                    update = live.receive_json()
+                    assert update["type"] == "update"
+                    assert update["you"] == token
+        finally:
+            if room:
+                franchise_api.manager.remove(room)
+

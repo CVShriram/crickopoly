@@ -220,8 +220,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const setSession = (session: Session | null) => {
     dispatch({ type: 'SESSION', session })
     if (session) {
+      // The session-change effect below owns the socket. Calling connect here
+      // too opens a second socket, and the stale socket's disconnect can drop
+      // the live connection from the server's connection map.
       dispatch({ type: 'VIEW', view: 'lobby' })
-      connect(session)
     } else {
       disconnect()
       dispatch({ type: 'VIEW', view: 'landing' })
